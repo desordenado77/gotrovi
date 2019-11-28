@@ -1,0 +1,16 @@
+{
+    "index": [
+      { 
+        "folder": "./",
+        "exclude": [ "./exclude" ]
+      },
+      {
+        "folder": "./temp",
+        "exclude": [ "./exclude" ]
+      }
+    ],
+    "exclude": {
+        "extension": [ "o", "bin", "elf" ],
+        "size": 100000
+    }
+  }
