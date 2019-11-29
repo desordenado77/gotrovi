@@ -1,86 +1,100 @@
 package main
+
 import (
-    "encoding/json"
-    "fmt"
-    "io/ioutil"
-	"os"
-	"log"
+	"encoding/json"
+	"fmt"
+	"hash"
 	"io"
+	"io/ioutil"
+	"log"
+	"os"
 
 	"github.com/pborman/getopt"
 )
 
-
 const CONFIGENV = "GOTROVI_CONF"
 
 type GotroviConf struct {
-	Index []Index 	`json:"index"`
+	Index   []Index `json:"index"`
 	Exclude Exclude `json:"exclude"`
+	Hash    string  `json:"hash"`
 }
 type Index struct {
-	Folder string 		`json:"folder"`
-	Exclude []string 	`json:"exclude"`
+	Folder  string   `json:"folder"`
+	Exclude []string `json:"exclude"`
 }
 type Exclude struct {
-	Extension []string 	`json:"extension"`
-	Size int 			`json:"size"`
+	Extension []string `json:"extension"`
+	Folder    []string `json:"folder"`
+	Size      int64    `json:"size"`
+}
+
+type Gotrovi struct {
+	conf  GotroviConf
+	count int
+	hash  hash.Hash
 }
 
 var (
-    Trace   *log.Logger
-    Info    *log.Logger
-    Warning *log.Logger
-    Error   *log.Logger
+	Trace   *log.Logger
+	Info    *log.Logger
+	Warning *log.Logger
+	Error   *log.Logger
 )
 
 func InitLogs(
-    traceHandle io.Writer,
-    infoHandle io.Writer,
-    warningHandle io.Writer,
-    errorHandle io.Writer) {
+	traceHandle io.Writer,
+	infoHandle io.Writer,
+	warningHandle io.Writer,
+	errorHandle io.Writer) {
 
-    Trace = log.New(traceHandle,
-        "TRACE: ",
-        log.Ldate|log.Ltime|log.Lshortfile)
+	Trace = log.New(traceHandle,
+		"TRACE: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
 
-    Info = log.New(infoHandle,
-        "INFO: ",
-        log.Ldate|log.Ltime|log.Lshortfile)
+	Info = log.New(infoHandle,
+		"INFO: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
 
-    Warning = log.New(warningHandle,
-        "WARNING: ",
-        log.Ldate|log.Ltime|log.Lshortfile)
+	Warning = log.New(warningHandle,
+		"WARNING: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
 
-    Error = log.New(errorHandle,
-        "ERROR: ",
-        log.Ldate|log.Ltime|log.Lshortfile)
+	Error = log.New(errorHandle,
+		"ERROR: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
 }
 
 func main() {
-//    optName := getopt.StringLong("name", 'n', "Torpedo", "Your name")
-    optHelp := getopt.BoolLong("help", 'h', "Show this message")
-    optWarning := getopt.BoolLong("warning", 'w', "Enable warnings")
-    optTraces := getopt.BoolLong("traces", 't', "Enable traces")
+	//    optName := getopt.StringLong("name", 'n', "Torpedo", "Your name")
+	optHelp := getopt.BoolLong("help", 'h', "Show this message")
+	optVerbose := getopt.IntLong("verbose", 'v', 0, "Set verbosity: 0 to 3")
+	optSync := getopt.BoolLong("Sync", 's', "Perform Sync")
 
 	getopt.Parse()
 
-    if *optHelp {
-        getopt.Usage()
-        os.Exit(0)
+	if *optHelp {
+		getopt.Usage()
+		os.Exit(0)
 	}
 
-	w := ioutil.Discard
-	if *optWarning {
-		w = os.Stdout
+	vw := ioutil.Discard
+	if *optVerbose > 0 {
+		vw = os.Stdout
 	}
 
-	t := ioutil.Discard
-	if *optTraces {
-		t = os.Stdout
+	vi := ioutil.Discard
+	if *optVerbose > 1 {
+		vi = os.Stdout
 	}
 
-	InitLogs(t, os.Stdout, w, os.Stderr)
-	
+	vt := ioutil.Discard
+	if *optVerbose > 2 {
+		vt = os.Stdout
+	}
+
+	InitLogs(vt, vi, vw, os.Stderr)
+
 	// read config file from:
 	// 1. .gotrovi/config.json in ~/
 	// 2. GOTROVI_CONF env variable
@@ -98,7 +112,7 @@ func main() {
 			jsonFile, err = os.Open(c)
 			if err != nil {
 				Warning.Println(err)
-			}		
+			}
 		} else {
 			Warning.Println(CONFIGENV + " environment variable not found")
 			err = os.ErrNotExist
@@ -108,37 +122,52 @@ func main() {
 			jsonFile, err = os.Open("./config.json")
 			if err != nil {
 				Warning.Println(err)
-			}		
+			}
 		}
 	}
 
 	if err != nil {
+		Error.Println("Unable to open config file")
+		os.Exit(1)
 	}
 
 	// read our opened xmlFile as a byte array.
-	byteValue, _ := ioutil.ReadAll(jsonFile)
+	byteValue, err := ioutil.ReadAll(jsonFile)
+
+	if err != nil {
+		Error.Println("Unable to read config file: " + jsonFile.Name())
+		os.Exit(1)
+	}
 
 	// we initialize our conf structure
-	var conf GotroviConf
+	var gotrovi Gotrovi
 
 	// we unmarshal our byteArray which contains our
 	// jsonFile's content into 'conf' which we defined above
-	json.Unmarshal(byteValue, &conf)
+	err = json.Unmarshal(byteValue, &gotrovi.conf)
+
+	if err != nil {
+		Error.Println("Unable to read config file: " + jsonFile.Name())
+		os.Exit(1)
+	}
 
 	// we iterate through every user within our users array and
 	// print out the user Type, their name, and their facebook url
 	// as just an example
-	for i := 0; i < len(conf.Index); i++ {
-		Trace.Println("folder: " + conf.Index[i].Folder)
-		for j := 0; j < len(conf.Index[i].Exclude); j++ {
-			Trace.Println("exclude: " + conf.Index[i].Exclude[j])
+	for i := 0; i < len(gotrovi.conf.Index); i++ {
+		Trace.Println("folder: " + gotrovi.conf.Index[i].Folder)
+		for j := 0; j < len(gotrovi.conf.Index[i].Exclude); j++ {
+			Trace.Println("exclude: " + gotrovi.conf.Index[i].Exclude[j])
 		}
 	}
-	for i := 0; i < len(conf.Exclude.Extension); i++ {
-		Trace.Println("exclude extensions: " + conf.Exclude.Extension[i])
+	for i := 0; i < len(gotrovi.conf.Exclude.Extension); i++ {
+		Trace.Println("exclude extensions: " + gotrovi.conf.Exclude.Extension[i])
 	}
-	Trace.Println("exclude size: ", conf.Exclude.Size)
+	Trace.Println("exclude size: ", gotrovi.conf.Exclude.Size)
+
+	if *optSync {
+		gotrovi.Sync()
+	}
 
 	fmt.Println("Done")
-
 }

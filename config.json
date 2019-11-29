@@ -2,7 +2,7 @@
     "index": [
       { 
         "folder": "./",
-        "exclude": [ "./exclude" ]
+        "exclude": [ "./exclude", "src/golangh.org" ]
       },
       {
         "folder": "./temp",
@@ -10,7 +10,9 @@
       }
     ],
     "exclude": {
-        "extension": [ "o", "bin", "elf" ],
+        "extension": [ ".go", ".o", ".bin", ".elf", ".zip", ".jpg", ".avi", ".mkv" ],
+        "folder": [ ".git", ".svn" ],
         "size": 100000
-    }
-  }
+    },
+    "hash": "md5"
+}
