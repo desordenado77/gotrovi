@@ -24,3 +24,7 @@
 [[constraint]]
   branch = "master"
   name = "github.com/pborman/getopt"
+
+[[constraint]]
+  name = "github.com/elastic/go-elasticsearch"
+  version = "0.0.0"

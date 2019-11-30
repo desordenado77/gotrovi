@@ -8,16 +8,19 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strconv"
 
+	"github.com/elastic/go-elasticsearch"
 	"github.com/pborman/getopt"
 )
 
 const CONFIGENV = "GOTROVI_CONF"
 
 type GotroviConf struct {
-	Index   []Index `json:"index"`
-	Exclude Exclude `json:"exclude"`
-	Hash    string  `json:"hash"`
+	Index         []Index  `json:"index"`
+	Exclude       Exclude  `json:"exclude"`
+	Hash          string   `json:"hash"`
+	ElasticSearch ESConfig `json:"elasticsearch"`
 }
 type Index struct {
 	Folder  string   `json:"folder"`
@@ -28,11 +31,16 @@ type Exclude struct {
 	Folder    []string `json:"folder"`
 	Size      int64    `json:"size"`
 }
+type ESConfig struct {
+	Host string `json:"host"`
+	Port int    `json:"port"`
+}
 
 type Gotrovi struct {
 	conf  GotroviConf
 	count int
 	hash  hash.Hash
+	es    *elasticsearch.Client
 }
 
 var (
@@ -164,6 +172,29 @@ func main() {
 		Trace.Println("exclude extensions: " + gotrovi.conf.Exclude.Extension[i])
 	}
 	Trace.Println("exclude size: ", gotrovi.conf.Exclude.Size)
+
+	cfg := elasticsearch.Config{
+		Addresses: []string{
+			"http://" + gotrovi.conf.ElasticSearch.Host + ":" + strconv.Itoa(gotrovi.conf.ElasticSearch.Port),
+		},
+	}
+
+	gotrovi.es, err = elasticsearch.NewClient(cfg)
+
+	if err != nil {
+		Error.Println("Error connecting to ElasticSearch " + cfg.Addresses[0])
+		Error.Println(err)
+		os.Exit(1)
+	}
+	res, err := gotrovi.es.Info()
+
+	Trace.Println(res)
+
+	if err != nil {
+		Error.Println("Error connecting to ElasticSearch " + cfg.Addresses[0])
+		Error.Println(err)
+		os.Exit(1)
+	}
 
 	if *optSync {
 		gotrovi.Sync()

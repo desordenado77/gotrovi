@@ -2,14 +2,20 @@
 
 
 [[projects]]
+  name = "github.com/elastic/go-elasticsearch"
+  packages = [".","esapi","estransport"]
+  revision = "3aa68f5e96e138fa4dafc9403b10674b4310a632"
+  version = "v0.0.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/pborman/getopt"
-  packages = ["v2"]
+  packages = ["."]
   revision = "ee0cd42419d3adee9239dbd1c375717fe482dac7"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "7eae2f6e362682c10323b86ad7e852ce9cace88d9281fe6810d97232e09c15fc"
+  inputs-digest = "5551241f82ebbf67c005da0225c00f7f0290d2728b4802eeda836bb465f73cdf"
   solver-name = "gps-cdcl"
   solver-version = 1

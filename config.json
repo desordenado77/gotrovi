@@ -14,5 +14,9 @@
         "folder": [ ".git", ".svn" ],
         "size": 100000
     },
-    "hash": "md5"
+    "hash": "md5",
+    "elasticsearch": {
+      "host": "localhost",
+      "port": 9200
+    }
 }
