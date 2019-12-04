@@ -1,0 +1,43 @@
+    PUT _ingest/pipeline/attachment
+    {
+    "description" : "Extract attachment information",
+    "processors" : [
+        {
+        "attachment" : {
+            "field" : "data"
+        }
+        }
+    ]
+    }
+
+
+The command bellow tells ES not to store the base64 parameter:
+
+    PUT _ingest/pipeline/attachment
+    {
+    "description" : "Extract attachment information",
+    "processors" : [
+        {
+        "attachment" : {
+            "field" : "data"
+        },
+            "remove": {
+                "field": "data"
+            }
+        }
+    ]
+    }
+
+Here is how you send the file, with the data in base64. Notice how it uses %2F instead of /
+
+    PUT my_index/_doc/another_id%2Fpath%2Fgoes%2Fhere?pipeline=attachment
+    {
+    "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
+    "hash": "the hash goes here",
+    "file": "/home/gorkag/test"
+    }
+
+Here we read the index
+
+    GET my_index/_doc/another_id%2Fpath%2Fgoes%2Fhere
+

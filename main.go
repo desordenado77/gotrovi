@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"hash"
@@ -9,12 +10,15 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/elastic/go-elasticsearch"
+	"github.com/elastic/go-elasticsearch/esapi"
 	"github.com/pborman/getopt"
 )
 
 const CONFIGENV = "GOTROVI_CONF"
+const GOTROVI_ES_INDEX = "gotrovi"
 
 type GotroviConf struct {
 	Index         []Index  `json:"index"`
@@ -34,6 +38,17 @@ type Exclude struct {
 type ESConfig struct {
 	Host string `json:"host"`
 	Port int    `json:"port"`
+}
+
+type FileDescriptionDoc struct {
+	FileName  string `json:"filename"`
+	Path      string `json:"path"`
+	Size      int64  `json:"size"`
+	Extension string `json:"extension"`
+	Hash      string `json:"hash"`
+	Data      string `json:"data"`
+	IsFolder  bool   `json:"isfolder"`
+	Date      string `json:"date"`
 }
 
 type Gotrovi struct {
@@ -192,6 +207,22 @@ func main() {
 
 	if err != nil {
 		Error.Println("Error connecting to ElasticSearch " + cfg.Addresses[0])
+		Error.Println(err)
+		os.Exit(1)
+	}
+
+	// configure Elastic
+	body := "{ \"processors\" : [ { \"attachment\" : { \"field\" : \"data\" }, \"remove\": { \"field\": \"data\" } } ] }"
+
+	req := esapi.IngestPutPipelineRequest{DocumentID: "attachement", Body: strings.NewReader(body)}
+	res, err = req.Do(context.Background(), gotrovi.es)
+	if err != nil {
+		Error.Println(err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		Error.Println("Unable to set pipeline attachement")
 		Error.Println(err)
 		os.Exit(1)
 	}

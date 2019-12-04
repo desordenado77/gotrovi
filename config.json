@@ -6,13 +6,13 @@
       },
       {
         "folder": "./temp",
-        "exclude": [ "./exclude" ]
+        "exclude": [ "./exclude", "src/github.com/desordenado77/gotrovi/es" ]
       }
     ],
     "exclude": {
         "extension": [ ".go", ".o", ".bin", ".elf", ".zip", ".jpg", ".avi", ".mkv" ],
         "folder": [ ".git", ".svn" ],
-        "size": 100000
+        "size": 1000000
     },
     "hash": "md5",
     "elasticsearch": {
