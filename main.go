@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"hash"
@@ -10,10 +9,8 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/elastic/go-elasticsearch"
-	"github.com/elastic/go-elasticsearch/esapi"
 	"github.com/pborman/getopt"
 )
 
@@ -42,6 +39,7 @@ type ESConfig struct {
 
 type FileDescriptionDoc struct {
 	FileName  string `json:"filename"`
+	FullName  string `json:"fullpath"`
 	Path      string `json:"path"`
 	Size      int64  `json:"size"`
 	Extension string `json:"extension"`
@@ -54,8 +52,11 @@ type FileDescriptionDoc struct {
 type Gotrovi struct {
 	conf  GotroviConf
 	count int
+	total int
 	hash  hash.Hash
 	es    *elasticsearch.Client
+
+	//	stdscr *gc.Window
 }
 
 var (
@@ -93,6 +94,7 @@ func main() {
 	optHelp := getopt.BoolLong("help", 'h', "Show this message")
 	optVerbose := getopt.IntLong("verbose", 'v', 0, "Set verbosity: 0 to 3")
 	optSync := getopt.BoolLong("Sync", 's', "Perform Sync")
+	optFind := getopt.StringLong("find", 'f', "", "Find file by name")
 
 	getopt.Parse()
 
@@ -210,25 +212,24 @@ func main() {
 		Error.Println(err)
 		os.Exit(1)
 	}
+	/*
+		gotrovi.stdscr, err = gc.Init()
+		if err != nil {
+			Error.Println("init:", err)
+		}
+		defer gc.End()
 
-	// configure Elastic
-	body := "{ \"processors\" : [ { \"attachment\" : { \"field\" : \"data\" }, \"remove\": { \"field\": \"data\" } } ] }"
-
-	req := esapi.IngestPutPipelineRequest{DocumentID: "attachement", Body: strings.NewReader(body)}
-	res, err = req.Do(context.Background(), gotrovi.es)
-	if err != nil {
-		Error.Println(err)
-	}
-	defer res.Body.Close()
-
-	if res.IsError() {
-		Error.Println("Unable to set pipeline attachement")
-		Error.Println(err)
-		os.Exit(1)
-	}
+		gotrovi.stdscr.Move(3, 5)
+		gotrovi.stdscr.Println("Hello World")
+		gotrovi.stdscr.GetChar()
+	*/
 
 	if *optSync {
 		gotrovi.Sync()
+	}
+
+	if *optFind != "" {
+		gotrovi.Find(*optFind)
 	}
 
 	fmt.Println("Done")

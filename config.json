@@ -2,15 +2,15 @@
     "index": [
       { 
         "folder": "./",
-        "exclude": [ "./exclude", "src/golangh.org" ]
+        "exclude": [ "./exclude", "src/golangh.org", "src/github.com/desordenado77/gotrovi/es" ]
       },
       {
         "folder": "./temp",
-        "exclude": [ "./exclude", "src/github.com/desordenado77/gotrovi/es" ]
+        "exclude": [ "./exclude" ]
       }
     ],
     "exclude": {
-        "extension": [ ".go", ".o", ".bin", ".elf", ".zip", ".jpg", ".avi", ".mkv" ],
+        "extension": [ ".o", ".bin", ".elf", ".zip", ".jpg", ".avi", ".mkv" ],
         "folder": [ ".git", ".svn" ],
         "size": 1000000
     },

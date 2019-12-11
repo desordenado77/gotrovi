@@ -9,6 +9,12 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/gbin/goncurses"
+  packages = ["."]
+  revision = "34d9399fcea5d7d8dc15c91de9994003c218bb45"
+
+[[projects]]
+  branch = "master"
   name = "github.com/pborman/getopt"
   packages = ["."]
   revision = "ee0cd42419d3adee9239dbd1c375717fe482dac7"
@@ -16,6 +22,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "5551241f82ebbf67c005da0225c00f7f0290d2728b4802eeda836bb465f73cdf"
+  inputs-digest = "fd951b88002ad93074c944574da844ef9462b93399ffc75bd67f905a57242ef8"
   solver-name = "gps-cdcl"
   solver-version = 1

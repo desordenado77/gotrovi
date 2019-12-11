@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
 	"path/filepath"
@@ -47,6 +49,22 @@ func (gotrovi *Gotrovi) Sync() {
 		defer res.Body.Close()
 	}
 
+	// configure Elastic
+	body := "{ \"processors\" : [ { \"attachment\" : { \"field\" : \"data\" }, \"remove\": { \"field\": \"data\" } } ] }"
+
+	req := esapi.IngestPutPipelineRequest{DocumentID: "attachement", Body: strings.NewReader(body)}
+	res, err = req.Do(context.Background(), gotrovi.es)
+	if err != nil {
+		Error.Println(err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		Error.Println("Unable to set pipeline attachement")
+		Error.Println(err)
+		os.Exit(1)
+	}
+
 	for i := 0; i < len(gotrovi.conf.Index); i++ {
 		gotrovi.SyncFolder(i)
 	}
@@ -55,6 +73,7 @@ func (gotrovi *Gotrovi) Sync() {
 func (gotrovi *Gotrovi) SyncFolder(i int) {
 	f := gotrovi.conf.Index[i].Folder
 	Info.Println("- " + f)
+	gotrovi.total = 0
 	gotrovi.count = 0
 	gotrovi.PerformFolderOperation(i, count)
 	Info.Println("Found files: ", gotrovi.count)
@@ -76,7 +95,33 @@ func (gotrovi *Gotrovi) SyncFolder(i int) {
 }
 
 func count(g *Gotrovi, info os.FileInfo, p string) {
-	g.count = g.count + 1
+	g.total = g.total + 1
+}
+
+func putIndex(g *Gotrovi, r esapi.IndexRequest) (*http.Response, error) {
+
+	// initialize http client
+	client := &http.Client{}
+
+	// marshal User to json
+	//	json, err := json.Marshal(r.Body)
+	//	if err != nil {
+	//		panic(err)
+	//	}
+
+	// set the HTTP method, url, and request body
+	req, err := http.NewRequest(http.MethodPut, "http://"+g.conf.ElasticSearch.Host+":"+strconv.Itoa(g.conf.ElasticSearch.Port)+"/"+GOTROVI_ES_INDEX+"/_doc/"+string(r.DocumentID)+"?pipeline=attachment", r.Body)
+	if err != nil {
+		Error.Println(err)
+	}
+
+	// set the request header Content-Type for json
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	resp, err := client.Do(req)
+	if err != nil {
+		Error.Println(err)
+	}
+	return resp, err
 }
 
 /*
@@ -97,6 +142,7 @@ func sync(g *Gotrovi, info os.FileInfo, p string) {
 	file.Data = ""
 	file.FileName = info.Name()
 	file.Path = filepath.Dir(p)
+	file.FullName = p
 	file.Size = 0
 	file.Extension = ""
 	file.Hash = ""
@@ -134,16 +180,34 @@ func sync(g *Gotrovi, info os.FileInfo, p string) {
 		return
 	}
 
+	//	fmt.Println(string(b))
 	req := esapi.IndexRequest{
-		Index:      GOTROVI_ES_INDEX,                                          // Index name
-		Body:       strings.NewReader(string(b)),                              // Document body
-		DocumentID: url.QueryEscape(fmt.Sprintf("%x", g.hash.Sum([]byte(p)))), // strings.Replace(p, "/", "%2F", -1), // Document ID
+		Index:      GOTROVI_ES_INDEX,             // Index name
+		Body:       strings.NewReader(string(b)), // Document body
+		DocumentID: url.QueryEscape(p),           // url.QueryEscape(fmt.Sprintf("%x", g.hash.Sum([]byte(p)))), // strings.Replace(p, "/", "%2F", -1), // Document ID
 		Pipeline:   "attachment",
 		Refresh:    "true", // Refresh
 	}
 
-	Trace.Println(req)
-	res, err := req.Do(context.Background(), g.es)
+	/*
+		Trace.Println(req)
+		res, err := req.Do(context.Background(), g.es)
+		if err != nil {
+			Error.Println("Error getting response:", err)
+			return
+		}
+		defer res.Body.Close()
+
+		Trace.Println(res)
+		if res.IsError() {
+			Error.Println("ES returned Error", res)
+			return
+		}
+
+		//	g.stdscr.Move(0, 0)
+		//	g.stdscr.Println(p)
+	*/
+	res, err := putIndex(g, req)
 	if err != nil {
 		Error.Println("Error getting response:", err)
 		return
@@ -151,10 +215,14 @@ func sync(g *Gotrovi, info os.FileInfo, p string) {
 	defer res.Body.Close()
 
 	Trace.Println(res)
-	if res.IsError() {
+	if res.StatusCode != 201 {
 		Error.Println("ES returned Error", res)
 		return
 	}
+
+	//	g.stdscr.Move(0, 0)
+	//	g.stdscr.Println(p)
+
 }
 
 func (gotrovi *Gotrovi) PerformFolderOperation(id int, fo folderOperation) {
