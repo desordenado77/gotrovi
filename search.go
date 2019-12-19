@@ -82,7 +82,7 @@ func (gotrovi *Gotrovi) Find(name string) {
 		Query:          name,
 		TrackTotalHits: true,
 		Source:         []string{"filename", "fullname", "fullpath", "path", "size", "isfolder", "date", "extension", "hash"},
-		Scroll:         1 * time.Microsecond,
+		Scroll:         59 * time.Microsecond,
 		//DocvalueFields: []string{"filename", "fullname", "fullpath", "path", "size", "isfolder", "date", "extension", "hash"},
 	}
 	Trace.Println(req)
@@ -124,7 +124,7 @@ func (gotrovi *Gotrovi) Find(name string) {
 	}
 	for ok := total > 0; ok; ok = total > 0 {
 		scroll := esapi.ScrollRequest{
-			Scroll:   1 * time.Microsecond,
+			Scroll:   59 * time.Microsecond,
 			ScrollID: data.ScrollId,
 		}
 		Trace.Println(scroll)

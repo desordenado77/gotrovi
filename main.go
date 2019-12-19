@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/apoorvam/goterminal"
 	"github.com/elastic/go-elasticsearch"
 	"github.com/pborman/getopt"
 )
@@ -47,15 +48,16 @@ type FileDescriptionDoc struct {
 	Data      string `json:"data"`
 	IsFolder  bool   `json:"isfolder"`
 	Date      string `json:"date"`
+	Mode      string `json:"mode"`
 }
 
 type Gotrovi struct {
-	conf  GotroviConf
-	count int
-	total int
-	hash  hash.Hash
-	es    *elasticsearch.Client
-
+	conf   GotroviConf
+	count  int
+	total  int
+	hash   hash.Hash
+	es     *elasticsearch.Client
+	writer *goterminal.Writer
 	//	stdscr *gc.Window
 }
 
@@ -156,7 +158,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// read our opened xmlFile as a byte array.
 	byteValue, err := ioutil.ReadAll(jsonFile)
 
 	if err != nil {
@@ -164,11 +165,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// we initialize our conf structure
 	var gotrovi Gotrovi
 
-	// we unmarshal our byteArray which contains our
-	// jsonFile's content into 'conf' which we defined above
 	err = json.Unmarshal(byteValue, &gotrovi.conf)
 
 	if err != nil {
@@ -176,9 +174,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// we iterate through every user within our users array and
-	// print out the user Type, their name, and their facebook url
-	// as just an example
 	for i := 0; i < len(gotrovi.conf.Index); i++ {
 		Trace.Println("folder: " + gotrovi.conf.Index[i].Folder)
 		for j := 0; j < len(gotrovi.conf.Index[i].Exclude); j++ {
@@ -223,6 +218,8 @@ func main() {
 		gotrovi.stdscr.Println("Hello World")
 		gotrovi.stdscr.GetChar()
 	*/
+
+	gotrovi.writer = goterminal.New(os.Stdout)
 
 	if *optSync {
 		gotrovi.Sync()

@@ -148,6 +148,7 @@ func sync(g *Gotrovi, info os.FileInfo, p string) {
 	file.Hash = ""
 	file.IsFolder = info.IsDir()
 	file.Date = info.ModTime().String()
+	file.Mode = info.Mode().String()
 
 	if !info.IsDir() {
 		f, err := os.Open(p)
@@ -222,6 +223,12 @@ func sync(g *Gotrovi, info os.FileInfo, p string) {
 
 	//	g.stdscr.Move(0, 0)
 	//	g.stdscr.Println(p)
+	g.writer.Clear()
+	fmt.Fprintf(g.writer, "Synchronizing (%d/%d) files...\n", g.count, g.total)
+	// write to terminal
+	g.writer.Print()
+
+	g.count = g.count + 1
 
 }
 

@@ -2,16 +2,22 @@
 
 
 [[projects]]
+  name = "github.com/apoorvam/goterminal"
+  packages = ["."]
+  revision = "614d345c47e510f5bc95fef660f25d0c00d224e4"
+  version = "v1.0"
+
+[[projects]]
   name = "github.com/elastic/go-elasticsearch"
   packages = [".","esapi","estransport"]
   revision = "3aa68f5e96e138fa4dafc9403b10674b4310a632"
   version = "v0.0.0"
 
 [[projects]]
-  branch = "master"
-  name = "github.com/gbin/goncurses"
+  name = "github.com/mattn/go-isatty"
   packages = ["."]
-  revision = "34d9399fcea5d7d8dc15c91de9994003c218bb45"
+  revision = "31745d66dd679ac0ac4f8d3ecff168fce6170c6a"
+  version = "v0.0.11"
 
 [[projects]]
   branch = "master"
@@ -19,9 +25,15 @@
   packages = ["."]
   revision = "ee0cd42419d3adee9239dbd1c375717fe482dac7"
 
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/sys"
+  packages = ["unix"]
+  revision = "4a24b406529242041050cb1dec3e0e4c46a5f1b6"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "fd951b88002ad93074c944574da844ef9462b93399ffc75bd67f905a57242ef8"
+  inputs-digest = "4b2a5fb6770b46c74a808651084b4d863b68c0c3abd98b241d86ffb25ea19db0"
   solver-name = "gps-cdcl"
   solver-version = 1

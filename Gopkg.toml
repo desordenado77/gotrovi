@@ -28,3 +28,7 @@
 [[constraint]]
   name = "github.com/elastic/go-elasticsearch"
   version = "0.0.0"
+
+[[constraint]]
+  name = "github.com/apoorvam/goterminal"
+  version = "1.0.0"
