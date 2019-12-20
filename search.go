@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/elastic/go-elasticsearch/esapi"
@@ -117,9 +120,12 @@ func (gotrovi *Gotrovi) Find(name string) {
 		os.Exit(1)
 	}
 	total := data.Hits.Total.Value
+
+	var buf bytes.Buffer
+
 	for _, element := range data.Hits.Hits {
 		// element is the element from someSlice for where we are
-		fmt.Println(strconv.Itoa(data.Hits.Total.Value-total) + " " + element.Source.FullName)
+		fmt.Fprintln(&buf, strconv.Itoa(data.Hits.Total.Value-total)+" "+element.Source.FullName)
 		total = total - 1
 	}
 	for ok := total > 0; ok; ok = total > 0 {
@@ -158,21 +164,19 @@ func (gotrovi *Gotrovi) Find(name string) {
 
 		for _, element := range data.Hits.Hits {
 			// element is the element from someSlice for where we are
-			fmt.Println(strconv.Itoa(data.Hits.Total.Value-total) + " " + element.Source.FullName)
+			fmt.Fprintln(&buf, strconv.Itoa(data.Hits.Total.Value-total)+" "+element.Source.FullName)
 			total = total - 1
 		}
+
 	}
 
-	//	fmt.Println(data)
+	cmd := exec.Command("less", "-X")
+	cmd.Stdin = strings.NewReader(buf.String())
+	cmd.Stdout = os.Stdout
 
-	// this is where the magic happens, I pass a pointer of type Person and Go'll do the rest
-	/*	err = json.Unmarshal(body, &p)
-
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Println(p.Name) // Jhon
-		fmt.Println(p.Age)  // 87
-	*/
+	err = cmd.Run()
+	if err != nil {
+		Error.Println(err)
+		os.Exit(1)
+	}
 }
