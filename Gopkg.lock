@@ -14,6 +14,12 @@
   version = "v0.0.0"
 
 [[projects]]
+  name = "github.com/gookit/color"
+  packages = ["."]
+  revision = "9bd56868939d658276cca2e9a0266ca9e29974c4"
+  version = "v1.2.0"
+
+[[projects]]
   name = "github.com/mattn/go-isatty"
   packages = ["."]
   revision = "31745d66dd679ac0ac4f8d3ecff168fce6170c6a"
@@ -34,6 +40,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4b2a5fb6770b46c74a808651084b4d863b68c0c3abd98b241d86ffb25ea19db0"
+  inputs-digest = "df4c13df0bad9a04ce8b3d9a763a0dca732c48d87e4c0139a628d3ec96eac2f8"
   solver-name = "gps-cdcl"
   solver-version = 1

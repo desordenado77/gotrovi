@@ -8,11 +8,12 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"strconv"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/elastic/go-elasticsearch/esapi"
+	"github.com/gookit/color"
 )
 
 type Source struct {
@@ -24,10 +25,12 @@ type Source struct {
 	Hash      string `json:"hash"`
 	IsFolder  bool   `json:"isfolder"`
 	Date      string `json:"date"`
+	Mode      string `json:"mode"`
 }
 
 type SearchHit struct {
-	Source Source `json:"_source"`
+	Score  float64 `json:"_score"`
+	Source Source  `json:"_source"`
 }
 
 type TotalHits struct {
@@ -45,46 +48,48 @@ type SearchResult struct {
 	Hits     SearchHits `json:"hits"`
 }
 
-/*
-{
-    "took": 1,
-    "timed_out": false,
-    "_shards":{
-        "total" : 1,
-        "successful" : 1,
-        "skipped" : 0,
-        "failed" : 0
-    },
-    "hits":{
-        "total" : {
-            "value": 1,
-            "relation": "eq"
-        },
-        "max_score": 1.3862944,
-        "hits" : [
-            {
-                "_index" : "twitter",
-                "_type" : "_doc",
-                "_id" : "0",
-                "_score": 1.3862944,
-                "_source" : {
-                    "user" : "kimchy",
-                    "message": "trying out Elasticsearch",
-                    "date" : "2009-11-15T14:12:12",
-                    "likes" : 0
-                }
-            }
-        ]
-    }
+func PrintEntry(s Source, score float64, buf *bytes.Buffer) {
+	colorfn := color.FgWhite.Render
+	if s.IsFolder {
+		colorfn = color.FgBlue.Render
+	} else {
+		if strings.Contains(s.Mode, "x") {
+			colorfn = color.FgGreen.Render
+		}
+	}
+
+	fmt.Fprintf(buf, "%s\t%g\n", colorfn(s.FullName), score)
 }
-*/
-func (gotrovi *Gotrovi) Find(name string) {
-	fmt.Println("searching " + name)
+
+func (gotrovi *Gotrovi) Find(name string, p string) {
+	query := name
+
+	fmt.Println(p)
+	if p != "" {
+		/*		var err error
+				dir, err = os.Getwd()
+				if err != nil {
+					Error.Println(err)
+					os.Exit(1)
+				}
+		*/
+		dir, err := filepath.Abs(p)
+		if err != nil {
+			Error.Println(err)
+			os.Exit(1)
+		}
+
+		query = "path:\"" + dir + "\" AND " + name
+	}
+
+	fmt.Println(query)
+
+	//	fmt.Println("searching " + name)
 	req := esapi.SearchRequest{
 		Index:          []string{GOTROVI_ES_INDEX}, // Index name
-		Query:          name,
+		Query:          query,
 		TrackTotalHits: true,
-		Source:         []string{"filename", "fullname", "fullpath", "path", "size", "isfolder", "date", "extension", "hash"},
+		Source:         []string{"filename", "fullname", "fullpath", "path", "size", "isfolder", "date", "extension", "hash", "mode"},
 		Scroll:         59 * time.Microsecond,
 		//DocvalueFields: []string{"filename", "fullname", "fullpath", "path", "size", "isfolder", "date", "extension", "hash"},
 	}
@@ -92,7 +97,7 @@ func (gotrovi *Gotrovi) Find(name string) {
 	res, err := req.Do(context.Background(), gotrovi.es)
 	if err != nil {
 		Error.Println("Error getting response:", err)
-		return
+		os.Exit(1)
 	}
 	defer res.Body.Close()
 
@@ -123,9 +128,10 @@ func (gotrovi *Gotrovi) Find(name string) {
 
 	var buf bytes.Buffer
 
+	fmt.Fprintf(&buf, "Found: %d entries\n", total)
+
 	for _, element := range data.Hits.Hits {
-		// element is the element from someSlice for where we are
-		fmt.Fprintln(&buf, strconv.Itoa(data.Hits.Total.Value-total)+" "+element.Source.FullName)
+		PrintEntry(element.Source, element.Score, &buf)
 		total = total - 1
 	}
 	for ok := total > 0; ok; ok = total > 0 {
@@ -163,14 +169,13 @@ func (gotrovi *Gotrovi) Find(name string) {
 		}
 
 		for _, element := range data.Hits.Hits {
-			// element is the element from someSlice for where we are
-			fmt.Fprintln(&buf, strconv.Itoa(data.Hits.Total.Value-total)+" "+element.Source.FullName)
+			PrintEntry(element.Source, element.Score, &buf)
 			total = total - 1
 		}
 
 	}
 
-	cmd := exec.Command("less", "-X")
+	cmd := exec.Command("less", "-X", "-N", "-r", "-S")
 	cmd.Stdin = strings.NewReader(buf.String())
 	cmd.Stdout = os.Stdout
 

@@ -68,6 +68,13 @@ var (
 	Error   *log.Logger
 )
 
+func usage() {
+	w := os.Stdout
+
+	getopt.PrintUsage(w)
+	fmt.Printf("\n[parameters ...] may contain a path, which will restrict the search results to that path\n")
+}
+
 func InitLogs(
 	traceHandle io.Writer,
 	infoHandle io.Writer,
@@ -92,13 +99,22 @@ func InitLogs(
 }
 
 func main() {
+	getopt.SetUsage(usage)
+
 	//    optName := getopt.StringLong("name", 'n', "Torpedo", "Your name")
 	optHelp := getopt.BoolLong("help", 'h', "Show this message")
 	optVerbose := getopt.IntLong("verbose", 'v', 0, "Set verbosity: 0 to 3")
 	optSync := getopt.BoolLong("Sync", 's', "Perform Sync")
 	optFind := getopt.StringLong("find", 'f', "", "Find file by name")
+	searchPath := ""
 
 	getopt.Parse()
+
+	fmt.Println("non-option ", getopt.Args())
+
+	if len(getopt.Args()) != 0 {
+		searchPath = getopt.Args()[0]
+	}
 
 	if *optHelp {
 		getopt.Usage()
@@ -207,17 +223,6 @@ func main() {
 		Error.Println(err)
 		os.Exit(1)
 	}
-	/*
-		gotrovi.stdscr, err = gc.Init()
-		if err != nil {
-			Error.Println("init:", err)
-		}
-		defer gc.End()
-
-		gotrovi.stdscr.Move(3, 5)
-		gotrovi.stdscr.Println("Hello World")
-		gotrovi.stdscr.GetChar()
-	*/
 
 	gotrovi.writer = goterminal.New(os.Stdout)
 
@@ -226,8 +231,6 @@ func main() {
 	}
 
 	if *optFind != "" {
-		gotrovi.Find(*optFind)
+		gotrovi.Find(*optFind, searchPath)
 	}
-
-	fmt.Println("Done")
 }
