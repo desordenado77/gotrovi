@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"reflect"
 	"strconv"
 
 	"github.com/apoorvam/goterminal"
@@ -72,7 +73,25 @@ func usage() {
 	w := os.Stdout
 
 	getopt.PrintUsage(w)
-	fmt.Printf("\n[parameters ...] may contain a path, which will restrict the search results to that path\n")
+	fmt.Printf("\n[parameters ...] may contain paths to restrict the search to. You may also use lucene queries to do the same, but this is more convenient.\n")
+	fmt.Printf("You may search for the following fields: \n\t")
+
+	var b FileDescriptionDoc
+	val := reflect.ValueOf(b)
+	for i := 0; i < val.Type().NumField(); i++ {
+		fmt.Printf("%s, ", val.Type().Field(i).Tag.Get("json"))
+	}
+	fmt.Println("attachment.content, attachment.content_type, attachment.language")
+
+	fmt.Printf("\nExamples:\n")
+
+	fmt.Printf("\tFind files bigger than 10 bytes named test\n")
+	fmt.Printf("\t\tgotrovi -f \"size:>=10 AND filename:test\"\n\n")
+	fmt.Printf("\tFind folders named test\n")
+	fmt.Printf("\t\tgotrovi -f \"filename:test AND isfolder:true\"\n\n")
+	fmt.Printf("\tFind files containing test\n")
+	fmt.Printf("\t\tgotrovi -f \"attachment.content:test\"\n\n")
+	fmt.Println("More info on the syntax used to find files in the Lucene query documentation: https://lucene.apache.org/core/2_9_4/queryparsersyntax.html")
 }
 
 func InitLogs(
@@ -102,18 +121,17 @@ func main() {
 	getopt.SetUsage(usage)
 
 	//    optName := getopt.StringLong("name", 'n', "Torpedo", "Your name")
-	optHelp := getopt.BoolLong("help", 'h', "Show this message")
-	optVerbose := getopt.IntLong("verbose", 'v', 0, "Set verbosity: 0 to 3")
+	optHelp := getopt.BoolLong("Help", 'h', "Show this message")
+	optVerbose := getopt.IntLong("Verbose", 'v', 0, "Set verbosity: 0 to 3")
 	optSync := getopt.BoolLong("Sync", 's', "Perform Sync")
-	optFind := getopt.StringLong("find", 'f', "", "Find file by name")
-	searchPath := ""
+	optFind := getopt.StringLong("Find", 'f', "", "Find file by name")
+	optScore := getopt.BoolLong("sCore", 'c', "Display elasticseach score")
+	var searchPath []string
 
 	getopt.Parse()
 
-	fmt.Println("non-option ", getopt.Args())
-
 	if len(getopt.Args()) != 0 {
-		searchPath = getopt.Args()[0]
+		searchPath = getopt.Args()
 	}
 
 	if *optHelp {
@@ -231,6 +249,6 @@ func main() {
 	}
 
 	if *optFind != "" {
-		gotrovi.Find(*optFind, searchPath)
+		gotrovi.Find(*optFind, searchPath, *optScore)
 	}
 }

@@ -48,7 +48,7 @@ type SearchResult struct {
 	Hits     SearchHits `json:"hits"`
 }
 
-func PrintEntry(s Source, score float64, buf *bytes.Buffer) {
+func PrintEntry(s Source, b bool, score float64, buf *bytes.Buffer) {
 	colorfn := color.FgWhite.Render
 	if s.IsFolder {
 		colorfn = color.FgBlue.Render
@@ -57,15 +57,17 @@ func PrintEntry(s Source, score float64, buf *bytes.Buffer) {
 			colorfn = color.FgGreen.Render
 		}
 	}
-
-	fmt.Fprintf(buf, "%s\t%g\n", colorfn(s.FullName), score)
+	if b {
+		fmt.Fprintf(buf, "%s\t%g\n", colorfn(s.FullName), score)
+	} else {
+		fmt.Fprintf(buf, "%s\n", colorfn(s.FullName))
+	}
 }
 
-func (gotrovi *Gotrovi) Find(name string, p string) {
+func (gotrovi *Gotrovi) Find(name string, p []string, s bool) {
 	query := name
 
-	fmt.Println(p)
-	if p != "" {
+	if len(p) != 0 {
 		/*		var err error
 				dir, err = os.Getwd()
 				if err != nil {
@@ -73,16 +75,25 @@ func (gotrovi *Gotrovi) Find(name string, p string) {
 					os.Exit(1)
 				}
 		*/
-		dir, err := filepath.Abs(p)
-		if err != nil {
-			Error.Println(err)
-			os.Exit(1)
-		}
+		dir_query := "("
+		for i, element := range p {
+			dir, err := filepath.Abs(element)
+			if err != nil {
+				Error.Println(err)
+				os.Exit(1)
+			}
 
-		query = "path:\"" + dir + "\" AND " + name
+			dir_query = dir_query + "path:\"" + dir + "\""
+
+			if i != (len(p) - 1) {
+				dir_query = dir_query + " OR "
+			}
+		}
+		dir_query = dir_query + ")"
+		query = dir_query + " AND " + query
 	}
 
-	fmt.Println(query)
+	Trace.Println(query)
 
 	//	fmt.Println("searching " + name)
 	req := esapi.SearchRequest{
@@ -131,7 +142,7 @@ func (gotrovi *Gotrovi) Find(name string, p string) {
 	fmt.Fprintf(&buf, "Found: %d entries\n", total)
 
 	for _, element := range data.Hits.Hits {
-		PrintEntry(element.Source, element.Score, &buf)
+		PrintEntry(element.Source, s, element.Score, &buf)
 		total = total - 1
 	}
 	for ok := total > 0; ok; ok = total > 0 {
@@ -169,7 +180,7 @@ func (gotrovi *Gotrovi) Find(name string, p string) {
 		}
 
 		for _, element := range data.Hits.Hits {
-			PrintEntry(element.Source, element.Score, &buf)
+			PrintEntry(element.Source, s, element.Score, &buf)
 			total = total - 1
 		}
 
