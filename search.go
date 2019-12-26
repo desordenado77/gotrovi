@@ -28,9 +28,14 @@ type Source struct {
 	Mode      string `json:"mode"`
 }
 
+type Highlight struct {
+	Field []string `json:"attachment.content"`
+}
+
 type SearchHit struct {
-	Score  float64 `json:"_score"`
-	Source Source  `json:"_source"`
+	Score     float64   `json:"_score"`
+	Source    Source    `json:"_source"`
+	Highlight Highlight `json:"highlight"`
 }
 
 type TotalHits struct {
@@ -48,8 +53,13 @@ type SearchResult struct {
 	Hits     SearchHits `json:"hits"`
 }
 
-func PrintEntry(s Source, b bool, score float64, buf *bytes.Buffer) {
-	colorfn := color.FgWhite.Render
+func PrintEntry(e SearchHit, bScore bool, sHighligh string, buf *bytes.Buffer) {
+	s := e.Source
+	score := e.Score
+
+	highlightColorfn := color.FgRed.Render
+	colorfn := color.FgMagenta.Render
+
 	if s.IsFolder {
 		colorfn = color.FgBlue.Render
 	} else {
@@ -57,14 +67,20 @@ func PrintEntry(s Source, b bool, score float64, buf *bytes.Buffer) {
 			colorfn = color.FgGreen.Render
 		}
 	}
-	if b {
-		fmt.Fprintf(buf, "%s\t%g\n", colorfn(s.FullName), score)
-	} else {
+	if len(e.Highlight.Field) == 0 {
 		fmt.Fprintf(buf, "%s\n", colorfn(s.FullName))
+	} else {
+		for _, element := range e.Highlight.Field {
+			fmt.Fprintf(buf, "%s:%s\n", colorfn(s.FullName), strings.Replace(element, sHighligh, highlightColorfn(sHighligh), -1))
+		}
+	}
+
+	if bScore {
+		fmt.Fprintf(buf, "Score: %g\n", score)
 	}
 }
 
-func (gotrovi *Gotrovi) Find(name string, p []string, s bool) {
+func (gotrovi *Gotrovi) Find(name string, p []string, s bool, h string, hb bool) {
 	query := name
 
 	if len(p) != 0 {
@@ -95,6 +111,12 @@ func (gotrovi *Gotrovi) Find(name string, p []string, s bool) {
 
 	Trace.Println(query)
 
+	highlighter := ""
+	fmt.Println(h)
+	if h != "" || hb {
+		highlighter = "{ \"highlight\" : { \"fields\" : { \"attachment.content\" : {} } } }"
+	}
+
 	//	fmt.Println("searching " + name)
 	req := esapi.SearchRequest{
 		Index:          []string{GOTROVI_ES_INDEX}, // Index name
@@ -102,6 +124,7 @@ func (gotrovi *Gotrovi) Find(name string, p []string, s bool) {
 		TrackTotalHits: true,
 		Source:         []string{"filename", "fullname", "fullpath", "path", "size", "isfolder", "date", "extension", "hash", "mode"},
 		Scroll:         59 * time.Microsecond,
+		Body:           strings.NewReader(highlighter),
 		//DocvalueFields: []string{"filename", "fullname", "fullpath", "path", "size", "isfolder", "date", "extension", "hash"},
 	}
 	Trace.Println(req)
@@ -142,7 +165,7 @@ func (gotrovi *Gotrovi) Find(name string, p []string, s bool) {
 	fmt.Fprintf(&buf, "Found: %d entries\n", total)
 
 	for _, element := range data.Hits.Hits {
-		PrintEntry(element.Source, s, element.Score, &buf)
+		PrintEntry(element, s, h, &buf)
 		total = total - 1
 	}
 	for ok := total > 0; ok; ok = total > 0 {
@@ -180,7 +203,7 @@ func (gotrovi *Gotrovi) Find(name string, p []string, s bool) {
 		}
 
 		for _, element := range data.Hits.Hits {
-			PrintEntry(element.Source, s, element.Score, &buf)
+			PrintEntry(element, s, h, &buf)
 			total = total - 1
 		}
 

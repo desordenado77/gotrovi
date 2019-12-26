@@ -126,6 +126,8 @@ func main() {
 	optSync := getopt.BoolLong("Sync", 's', "Perform Sync")
 	optFind := getopt.StringLong("Find", 'f', "", "Find file by name")
 	optScore := getopt.BoolLong("sCore", 'c', "Display elasticseach score")
+	optHighlightString := getopt.StringLong("grep", 'g', "", "Grep style output showing the match in the content. Give the text to grep for in the highlights as parameter")
+	optHighlightBool := getopt.BoolLong("Grep", 'G', "Grep style output showing the match in the content")
 	var searchPath []string
 
 	getopt.Parse()
@@ -249,6 +251,6 @@ func main() {
 	}
 
 	if *optFind != "" {
-		gotrovi.Find(*optFind, searchPath, *optScore)
+		gotrovi.Find(*optFind, searchPath, *optScore, *optHighlightString, *optHighlightBool)
 	}
 }
