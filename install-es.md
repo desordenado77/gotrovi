@@ -1,6 +1,21 @@
 How to install ElasticSearch and the necessary plugins
 ------------------------------------------------------
 
+Clone the gotrovi-dockerfiles repository:
+
+git clone https://github.com/desordenado77/gotrovi-dockerfiles.git
+
+Build the elasticsearch docker:
+
+cd gotrovi-dockerfiles/elasticsearch
+docker build ./ -t gotrovi-es:latest -t gotrovi-es:7.4.2
+
+Run the container:
+
+docker run -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -v ${PWD}/es:/usr/share/elasticsearch/data gotrovi-es:latest
+
+Old instructions:
+
 Get docker container with elasticsearch by doing:
 
 docker pull docker.elastic.co/elasticsearch/elasticsearch:7.4.2
