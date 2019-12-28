@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"hash"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/apoorvam/goterminal"
 	"github.com/elastic/go-elasticsearch"
@@ -247,7 +249,18 @@ func main() {
 	gotrovi.writer = goterminal.New(os.Stdout)
 
 	if *optSync {
-		gotrovi.Sync()
+		for {
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Println("Are you shure you want to resynch? (y/n)")
+			text, _ := reader.ReadString('\n')
+			text = strings.Replace(strings.ToLower(text), "\n", "", -1)
+			if text == "yes" || text == "y" {
+				gotrovi.Sync()
+				break
+			} else if text == "no" || text == "n" {
+				break
+			}
+		}
 	}
 
 	if *optFind != "" {
