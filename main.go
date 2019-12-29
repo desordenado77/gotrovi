@@ -2,6 +2,9 @@ package main
 
 import (
 	"bufio"
+	"crypto/md5"
+	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/json"
 	"fmt"
 	"hash"
@@ -125,7 +128,7 @@ func main() {
 	//    optName := getopt.StringLong("name", 'n', "Torpedo", "Your name")
 	optHelp := getopt.BoolLong("Help", 'h', "Show this message")
 	optVerbose := getopt.IntLong("Verbose", 'v', 0, "Set verbosity: 0 to 3")
-	optSync := getopt.BoolLong("Sync", 's', "Perform Sync")
+	optSync := getopt.StringLong("Sync", 's', "", "Perform Sync. force is the brute force sync type in which the ES index is deleted and the whole FS is processed")
 	optFind := getopt.StringLong("Find", 'f', "", "Find file by name")
 	optScore := getopt.BoolLong("sCore", 'c', "Display elasticseach score")
 	optHighlightString := getopt.StringLong("grep", 'g', "", "Grep style output showing the match in the content. Give the text to grep for in the highlights as parameter")
@@ -248,14 +251,35 @@ func main() {
 
 	gotrovi.writer = goterminal.New(os.Stdout)
 
-	if *optSync {
+	if *optSync != "" {
 		for {
 			reader := bufio.NewReader(os.Stdin)
 			fmt.Println("Are you shure you want to resynch? (y/n)")
 			text, _ := reader.ReadString('\n')
 			text = strings.Replace(strings.ToLower(text), "\n", "", -1)
 			if text == "yes" || text == "y" {
-				gotrovi.Sync()
+
+				switch gotrovi.conf.Hash {
+				case "md5":
+					gotrovi.hash = md5.New()
+				case "sha256":
+					gotrovi.hash = sha256.New()
+				case "sha512":
+					gotrovi.hash = sha512.New()
+				default:
+					gotrovi.hash = md5.New()
+
+				}
+
+				if *optSync == "forced" {
+					gotrovi.SyncForced()
+				}
+				if *optSync == "update" {
+					gotrovi.SyncUpdate(true)
+				}
+				if *optSync == "updateFast" {
+					gotrovi.SyncUpdate(false)
+				}
 				break
 			} else if text == "no" || text == "n" {
 				break

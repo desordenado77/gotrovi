@@ -53,7 +53,9 @@ type SearchResult struct {
 	Hits     SearchHits `json:"hits"`
 }
 
-func PrintEntry(e SearchHit, bScore bool, sHighligh string, buf *bytes.Buffer) {
+type ES_EntryFunc func(g *Gotrovi, total int, current int, e SearchHit, boolOption bool, stringOption string, buf *bytes.Buffer)
+
+func PrintEntry(g *Gotrovi, total int, current int, e SearchHit, bScore bool, sHighligh string, buf *bytes.Buffer) {
 	s := e.Source
 	score := e.Score
 
@@ -80,10 +82,26 @@ func PrintEntry(e SearchHit, bScore bool, sHighligh string, buf *bytes.Buffer) {
 	}
 }
 
-func (gotrovi *Gotrovi) Find(name string, p []string, s bool, h string, hb bool) {
+func (gotrovi *Gotrovi) Find(name string, paths []string, score bool, highlightText string, highlightBool bool) {
+	var buf bytes.Buffer
+
+	gotrovi.ES_Find(name, paths, score, highlightText, highlightBool, PrintEntry, &buf)
+
+	cmd := exec.Command("less", "-X", "-N", "-r", "-S")
+	cmd.Stdin = strings.NewReader(buf.String())
+	cmd.Stdout = os.Stdout
+
+	err := cmd.Run()
+	if err != nil {
+		Error.Println(err)
+		os.Exit(1)
+	}
+}
+
+func (gotrovi *Gotrovi) ES_Find(name string, paths []string, boolOption bool, highlightText string, highlightBool bool, entryFunc ES_EntryFunc, buf *bytes.Buffer) {
 	query := name
 
-	if len(p) != 0 {
+	if len(paths) != 0 {
 		/*		var err error
 				dir, err = os.Getwd()
 				if err != nil {
@@ -92,7 +110,7 @@ func (gotrovi *Gotrovi) Find(name string, p []string, s bool, h string, hb bool)
 				}
 		*/
 		dir_query := "("
-		for i, element := range p {
+		for i, element := range paths {
 			dir, err := filepath.Abs(element)
 			if err != nil {
 				Error.Println(err)
@@ -101,7 +119,7 @@ func (gotrovi *Gotrovi) Find(name string, p []string, s bool, h string, hb bool)
 
 			dir_query = dir_query + "path:\"" + dir + "\""
 
-			if i != (len(p) - 1) {
+			if i != (len(paths) - 1) {
 				dir_query = dir_query + " OR "
 			}
 		}
@@ -112,8 +130,8 @@ func (gotrovi *Gotrovi) Find(name string, p []string, s bool, h string, hb bool)
 	Trace.Println(query)
 
 	highlighter := ""
-	fmt.Println(h)
-	if h != "" || hb {
+	Trace.Println("Highlight text: ", highlightText)
+	if highlightText != "" || highlightBool {
 		highlighter = "{ \"highlight\" : { \"fields\" : { \"attachment.content\" : {} } } }"
 	}
 
@@ -159,16 +177,15 @@ func (gotrovi *Gotrovi) Find(name string, p []string, s bool, h string, hb bool)
 		os.Exit(1)
 	}
 	total := data.Hits.Total.Value
+	current := total
 
-	var buf bytes.Buffer
-
-	fmt.Fprintf(&buf, "Found: %d entries\n", total)
+	fmt.Fprintf(buf, "Found: %d entries\n", total)
 
 	for _, element := range data.Hits.Hits {
-		PrintEntry(element, s, h, &buf)
-		total = total - 1
+		entryFunc(gotrovi, total, current, element, boolOption, highlightText, buf)
+		current = current - 1
 	}
-	for ok := total > 0; ok; ok = total > 0 {
+	for ok := current > 0; ok; ok = current > 0 {
 		scroll := esapi.ScrollRequest{
 			Scroll:   59 * time.Microsecond,
 			ScrollID: data.ScrollId,
@@ -203,19 +220,8 @@ func (gotrovi *Gotrovi) Find(name string, p []string, s bool, h string, hb bool)
 		}
 
 		for _, element := range data.Hits.Hits {
-			PrintEntry(element, s, h, &buf)
-			total = total - 1
+			entryFunc(gotrovi, total, current, element, boolOption, highlightText, buf)
+			current = current - 1
 		}
-
-	}
-
-	cmd := exec.Command("less", "-X", "-N", "-r", "-S")
-	cmd.Stdin = strings.NewReader(buf.String())
-	cmd.Stdout = os.Stdout
-
-	err = cmd.Run()
-	if err != nil {
-		Error.Println(err)
-		os.Exit(1)
 	}
 }

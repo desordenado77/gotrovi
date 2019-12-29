@@ -2,10 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
-	"crypto/md5"
-	"crypto/sha256"
-	"crypto/sha512"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -24,7 +22,7 @@ import (
 
 type folderOperation func(*Gotrovi, os.FileInfo, string)
 
-func (gotrovi *Gotrovi) Sync() {
+func (gotrovi *Gotrovi) SyncForced() {
 	Info.Println("Performing Sync")
 
 	res, err := gotrovi.es.Search(
@@ -78,18 +76,6 @@ func (gotrovi *Gotrovi) SyncFolder(i int) {
 	gotrovi.PerformFolderOperation(i, count)
 	Info.Println("Found files: ", gotrovi.count)
 
-	switch gotrovi.conf.Hash {
-	case "md5":
-		gotrovi.hash = md5.New()
-	case "sha256":
-		gotrovi.hash = sha256.New()
-	case "sha512":
-		gotrovi.hash = sha512.New()
-	default:
-		gotrovi.hash = md5.New()
-
-	}
-
 	gotrovi.PerformFolderOperation(i, sync)
 
 }
@@ -98,7 +84,7 @@ func count(g *Gotrovi, info os.FileInfo, p string) {
 	g.total = g.total + 1
 }
 
-func putIndex(g *Gotrovi, r esapi.IndexRequest) (*http.Response, error) {
+func putDoc(g *Gotrovi, r esapi.IndexRequest) (*http.Response, error) {
 
 	// initialize http client
 	client := &http.Client{}
@@ -111,6 +97,32 @@ func putIndex(g *Gotrovi, r esapi.IndexRequest) (*http.Response, error) {
 
 	// set the HTTP method, url, and request body
 	req, err := http.NewRequest(http.MethodPut, "http://"+g.conf.ElasticSearch.Host+":"+strconv.Itoa(g.conf.ElasticSearch.Port)+"/"+GOTROVI_ES_INDEX+"/_doc/"+string(r.DocumentID)+"?pipeline=attachment", r.Body)
+	if err != nil {
+		Error.Println(err)
+	}
+
+	// set the request header Content-Type for json
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	resp, err := client.Do(req)
+	if err != nil {
+		Error.Println(err)
+	}
+	return resp, err
+}
+
+func deleteDoc(g *Gotrovi, r esapi.DeleteRequest) (*http.Response, error) {
+
+	// initialize http client
+	client := &http.Client{}
+
+	// marshal User to json
+	//	json, err := json.Marshal(r.Body)
+	//	if err != nil {
+	//		panic(err)
+	//	}
+
+	// set the HTTP method, url, and request body
+	req, err := http.NewRequest(http.MethodDelete, "http://"+g.conf.ElasticSearch.Host+":"+strconv.Itoa(g.conf.ElasticSearch.Port)+"/"+GOTROVI_ES_INDEX+"/_doc/"+string(r.DocumentID), nil)
 	if err != nil {
 		Error.Println(err)
 	}
@@ -173,6 +185,7 @@ func sync(g *Gotrovi, info os.FileInfo, p string) {
 		file.Size = info.Size()
 		file.Extension = filepath.Ext(info.Name())
 		file.Hash = fmt.Sprintf("%x", sum)
+		g.hash.Reset()
 	}
 
 	b, err := json.Marshal(file)
@@ -208,7 +221,8 @@ func sync(g *Gotrovi, info os.FileInfo, p string) {
 		//	g.stdscr.Move(0, 0)
 		//	g.stdscr.Println(p)
 	*/
-	res, err := putIndex(g, req)
+	// Cannot use the IndexRequest directly because esapi has issues handling forward slashes
+	res, err := putDoc(g, req)
 	if err != nil {
 		Error.Println("Error getting response:", err)
 		return
@@ -216,7 +230,7 @@ func sync(g *Gotrovi, info os.FileInfo, p string) {
 	defer res.Body.Close()
 
 	Trace.Println(res)
-	if res.StatusCode != 201 {
+	if res.StatusCode != 201 && res.StatusCode != 200 {
 		Error.Println("ES returned Error", res)
 		return
 	}
@@ -276,4 +290,92 @@ func (gotrovi *Gotrovi) PerformFolderOperation(id int, fo folderOperation) {
 	if err != nil {
 		Error.Println(err)
 	}
+}
+
+func UpdateEntries(g *Gotrovi, total int, current int, e SearchHit, useHash bool, stringOption string, buf *bytes.Buffer) {
+	// check if entry still exists and delete it from ES if not
+
+	info, err := os.Stat(e.Source.FullName)
+	if os.IsNotExist(err) {
+		// file no longer present. Delete the document from ES
+		Info.Println("Delete file from ES ", e.Source.FullName)
+		Info.Println("Delete file from ES ", e.Source.FullName)
+
+		req := esapi.DeleteRequest{
+			Index:      GOTROVI_ES_INDEX, // Index name
+			DocumentID: url.QueryEscape(e.Source.FullName),
+		}
+		// Cannot use the DeleteRequest directly because esapi has issues handling forward slashes
+		res, err := deleteDoc(g, req)
+
+		if err != nil || res.StatusCode != 200 {
+			Error.Println("Error getting response:", err, res)
+			Error.Println("Error getting response:", err, res)
+			return
+		}
+		res.Body.Close()
+	} else {
+		syncFile := false
+		// Check if file has changed
+		if useHash && !info.IsDir() {
+			f, err := os.Open(e.Source.FullName)
+			if err != nil {
+				Error.Println(err)
+			}
+			defer f.Close()
+
+			if _, err := io.Copy(g.hash, f); err != nil {
+				Error.Println(err)
+			}
+			sum := g.hash.Sum(nil)
+
+			f.Close()
+
+			g.hash.Reset()
+
+			if fmt.Sprintf("%x", sum) != e.Source.Hash {
+
+				syncFile = true
+			}
+
+		} else {
+			if info.ModTime().String() != e.Source.Date {
+				syncFile = true
+			}
+		}
+		if syncFile {
+			Info.Println("Resync file ", e.Source.FullName)
+			Info.Println("Resync file ", e.Source.FullName)
+			sync(g, info, e.Source.FullName)
+
+		}
+
+	}
+
+	g.writer.Clear()
+	fmt.Fprintf(g.writer, "Updating (%d/%d) files...\n", total-current+1, total)
+	// write to terminal
+	g.writer.Print()
+
+}
+
+func (gotrovi *Gotrovi) SyncUpdate(useHash bool) {
+	Info.Println("Deleting missing docs")
+
+	res, err := gotrovi.es.Search(
+		gotrovi.es.Search.WithIndex(GOTROVI_ES_INDEX),
+		//		gotrovi.es.Search.WithSort("timestamp:desc"),
+		gotrovi.es.Search.WithSize(1),
+		gotrovi.es.Search.WithContext(context.Background()),
+	)
+	if err != nil || res.IsError() {
+		Error.Println(err)
+		return
+	}
+	defer res.Body.Close()
+
+	var buf bytes.Buffer
+
+	gotrovi.ES_Find("*", []string{}, useHash, "", false, UpdateEntries, &buf)
+
 }
