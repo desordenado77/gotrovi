@@ -133,7 +133,33 @@ func deleteDoc(g *Gotrovi, r esapi.DeleteRequest) (*http.Response, error) {
 	if err != nil {
 		Error.Println(err)
 	}
+	defer resp.Body.Close()
 	return resp, err
+}
+
+func docExists(g *Gotrovi, r esapi.GetRequest) (exists bool) {
+
+	// initialize http client
+	client := &http.Client{}
+
+	// set the HTTP method, url, and request body
+	req, err := http.NewRequest(http.MethodGet, "http://"+g.conf.ElasticSearch.Host+":"+strconv.Itoa(g.conf.ElasticSearch.Port)+"/"+GOTROVI_ES_INDEX+"/_doc/"+string(r.DocumentID), nil)
+	if err != nil {
+		Error.Println(err)
+		return false
+	}
+
+	// set the request header Content-Type for json
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	resp, err := client.Do(req)
+	if err != nil || resp.StatusCode != 200 {
+		if err != nil {
+			Error.Println(err)
+		}
+		return false
+	}
+	resp.Body.Close()
+	return true
 }
 
 /*
@@ -166,11 +192,13 @@ func sync(g *Gotrovi, info os.FileInfo, p string) {
 		f, err := os.Open(p)
 		if err != nil {
 			Error.Println(err)
+			Error.Println()
 		}
 		defer f.Close()
 
 		if _, err := io.Copy(g.hash, f); err != nil {
 			Error.Println(err)
+			Error.Println()
 		}
 		sum := g.hash.Sum(nil)
 
@@ -186,11 +214,13 @@ func sync(g *Gotrovi, info os.FileInfo, p string) {
 		file.Extension = filepath.Ext(info.Name())
 		file.Hash = fmt.Sprintf("%x", sum)
 		g.hash.Reset()
+		f.Close()
 	}
 
 	b, err := json.Marshal(file)
 	if err != nil {
 		Error.Println(err)
+		Error.Println()
 		return
 	}
 
@@ -225,13 +255,17 @@ func sync(g *Gotrovi, info os.FileInfo, p string) {
 	res, err := putDoc(g, req)
 	if err != nil {
 		Error.Println("Error getting response:", err)
+		Error.Println()
 		return
 	}
 	defer res.Body.Close()
 
 	Trace.Println(res)
 	if res.StatusCode != 201 && res.StatusCode != 200 {
-		Error.Println("ES returned Error", res)
+		Error.Println("ES returned Error with file: ", p)
+		body, _ := ioutil.ReadAll(res.Body)
+		Error.Println("Error: ", string(body))
+		Error.Println()
 		return
 	}
 
@@ -239,6 +273,29 @@ func sync(g *Gotrovi, info os.FileInfo, p string) {
 	//	g.stdscr.Println(p)
 	g.writer.Clear()
 	fmt.Fprintf(g.writer, "Synchronizing (%d/%d) files...\n", g.count, g.total)
+	// write to terminal
+	g.writer.Print()
+
+	g.count = g.count + 1
+
+}
+
+func addMissing(g *Gotrovi, info os.FileInfo, p string) {
+	Trace.Println("Checking if file exists in ES: " + p)
+
+	req := esapi.GetRequest{
+		Index:      GOTROVI_ES_INDEX,   // Index name
+		DocumentID: url.QueryEscape(p), // url.QueryEscape(fmt.Sprintf("%x", g.hash.Sum([]byte(p)))), // strings.Replace(p, "/", "%2F", -1), // Document ID
+	}
+	if !docExists(g, req) {
+		Info.Println("Adding file: ", p)
+		Info.Println()
+		sync(g, info, p)
+		g.added = g.added + 1
+	}
+
+	g.writer.Clear()
+	fmt.Fprintf(g.writer, "Checking for new files (%d/%d) files. %d files added...\n", g.count, g.total, g.added)
 	// write to terminal
 	g.writer.Print()
 
@@ -334,15 +391,15 @@ func UpdateEntries(g *Gotrovi, total int, current int, e SearchHit, useHash bool
 			g.hash.Reset()
 
 			if fmt.Sprintf("%x", sum) != e.Source.Hash {
-
 				syncFile = true
 			}
 
-		} else {
-			if info.ModTime().String() != e.Source.Date {
-				syncFile = true
-			}
 		}
+
+		if !syncFile && info.ModTime().String() != e.Source.Date {
+			syncFile = true
+		}
+
 		if syncFile {
 			Info.Println("Resync file ", e.Source.FullName)
 			Info.Println("Resync file ", e.Source.FullName)
@@ -378,4 +435,20 @@ func (gotrovi *Gotrovi) SyncUpdate(useHash bool) {
 
 	gotrovi.ES_Find("*", []string{}, useHash, "", false, UpdateEntries, &buf)
 
+}
+
+func (gotrovi *Gotrovi) SyncAddMissing() {
+	Info.Println("Adding Missing files")
+
+	for i := 0; i < len(gotrovi.conf.Index); i++ {
+		f := gotrovi.conf.Index[i].Folder
+		Info.Println("- " + f)
+		gotrovi.total = 0
+		gotrovi.count = 0
+		gotrovi.added = 0
+		gotrovi.PerformFolderOperation(i, count)
+		Info.Println("Found files: ", gotrovi.count)
+
+		gotrovi.PerformFolderOperation(i, addMissing)
+	}
 }

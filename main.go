@@ -61,6 +61,7 @@ type Gotrovi struct {
 	conf   GotroviConf
 	count  int
 	total  int
+	added  int
 	hash   hash.Hash
 	es     *elasticsearch.Client
 	writer *goterminal.Writer
@@ -276,9 +277,11 @@ func main() {
 				}
 				if *optSync == "update" {
 					gotrovi.SyncUpdate(true)
+					gotrovi.SyncAddMissing()
 				}
 				if *optSync == "updateFast" {
 					gotrovi.SyncUpdate(false)
+					gotrovi.SyncAddMissing()
 				}
 				break
 			} else if text == "no" || text == "n" {
