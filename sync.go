@@ -22,64 +22,6 @@ import (
 
 type folderOperation func(*Gotrovi, os.FileInfo, string)
 
-func (gotrovi *Gotrovi) SyncForced() {
-	Info.Println("Performing Sync")
-
-	res, err := gotrovi.es.Search(
-		gotrovi.es.Search.WithIndex(GOTROVI_ES_INDEX),
-		//		gotrovi.es.Search.WithSort("timestamp:desc"),
-		gotrovi.es.Search.WithSize(1),
-		gotrovi.es.Search.WithContext(context.Background()),
-	)
-	if err != nil {
-		Error.Println(err)
-	}
-	defer res.Body.Close()
-
-	if err == nil && !res.IsError() {
-		Trace.Println("Deleting index" + GOTROVI_ES_INDEX)
-		// Delete index to start from scratch
-		req := esapi.IndicesDeleteRequest{Index: []string{GOTROVI_ES_INDEX}}
-		res, err := req.Do(context.Background(), gotrovi.es)
-		if err != nil {
-			Error.Println(err)
-		}
-		defer res.Body.Close()
-	}
-
-	// configure Elastic
-	body := "{ \"processors\" : [ { \"attachment\" : { \"field\" : \"data\" }, \"remove\": { \"field\": \"data\" } } ] }"
-
-	req := esapi.IngestPutPipelineRequest{DocumentID: "attachement", Body: strings.NewReader(body)}
-	res, err = req.Do(context.Background(), gotrovi.es)
-	if err != nil {
-		Error.Println(err)
-	}
-	defer res.Body.Close()
-
-	if res.IsError() {
-		Error.Println("Unable to set pipeline attachement")
-		Error.Println(err)
-		os.Exit(1)
-	}
-
-	for i := 0; i < len(gotrovi.conf.Index); i++ {
-		gotrovi.SyncFolder(i)
-	}
-}
-
-func (gotrovi *Gotrovi) SyncFolder(i int) {
-	f := gotrovi.conf.Index[i].Folder
-	Info.Println("- " + f)
-	gotrovi.total = 0
-	gotrovi.count = 0
-	gotrovi.PerformFolderOperation(i, count)
-	Info.Println("Found files: ", gotrovi.count)
-
-	gotrovi.PerformFolderOperation(i, sync)
-
-}
-
 func count(g *Gotrovi, info os.FileInfo, p string) {
 	g.total = g.total + 1
 }
@@ -162,16 +104,6 @@ func docExists(g *Gotrovi, r esapi.GetRequest) (exists bool) {
 	return true
 }
 
-/*
-type FileDescriptionDoc struct {
-	FileName  string `json:"filename"`
-	Size      int64  `json:"size"`
-	Extension string `json:"extension"`
-	Hash      string `json:"hash"`
-	Data      string `json:"data"`
-	isFolder  bool   `json:"isfolder"`
-}
-*/
 func sync(g *Gotrovi, info os.FileInfo, p string) {
 	Trace.Println("Sync File: " + p)
 
@@ -233,24 +165,6 @@ func sync(g *Gotrovi, info os.FileInfo, p string) {
 		Refresh:    "true", // Refresh
 	}
 
-	/*
-		Trace.Println(req)
-		res, err := req.Do(context.Background(), g.es)
-		if err != nil {
-			Error.Println("Error getting response:", err)
-			return
-		}
-		defer res.Body.Close()
-
-		Trace.Println(res)
-		if res.IsError() {
-			Error.Println("ES returned Error", res)
-			return
-		}
-
-		//	g.stdscr.Move(0, 0)
-		//	g.stdscr.Println(p)
-	*/
 	// Cannot use the IndexRequest directly because esapi has issues handling forward slashes
 	res, err := putDoc(g, req)
 	if err != nil {
@@ -269,8 +183,6 @@ func sync(g *Gotrovi, info os.FileInfo, p string) {
 		return
 	}
 
-	//	g.stdscr.Move(0, 0)
-	//	g.stdscr.Println(p)
 	g.writer.Clear()
 	fmt.Fprintf(g.writer, "Synchronizing (%d/%d) files...\n", g.count, g.total)
 	// write to terminal
@@ -356,7 +268,7 @@ func UpdateEntries(g *Gotrovi, total int, current int, e SearchHit, useHash bool
 	if os.IsNotExist(err) {
 		// file no longer present. Delete the document from ES
 		Info.Println("Delete file from ES ", e.Source.FullName)
-		Info.Println("Delete file from ES ", e.Source.FullName)
+		Info.Println()
 
 		req := esapi.DeleteRequest{
 			Index:      GOTROVI_ES_INDEX, // Index name
@@ -367,7 +279,7 @@ func UpdateEntries(g *Gotrovi, total int, current int, e SearchHit, useHash bool
 
 		if err != nil || res.StatusCode != 200 {
 			Error.Println("Error getting response:", err, res)
-			Error.Println("Error getting response:", err, res)
+			Error.Println()
 			return
 		}
 		res.Body.Close()
@@ -402,7 +314,7 @@ func UpdateEntries(g *Gotrovi, total int, current int, e SearchHit, useHash bool
 
 		if syncFile {
 			Info.Println("Resync file ", e.Source.FullName)
-			Info.Println("Resync file ", e.Source.FullName)
+			Info.Println()
 			sync(g, info, e.Source.FullName)
 
 		}
@@ -413,6 +325,18 @@ func UpdateEntries(g *Gotrovi, total int, current int, e SearchHit, useHash bool
 	fmt.Fprintf(g.writer, "Updating (%d/%d) files...\n", total-current+1, total)
 	// write to terminal
 	g.writer.Print()
+
+}
+
+func (gotrovi *Gotrovi) SyncFolder(i int) {
+	f := gotrovi.conf.Index[i].Folder
+	Info.Println("- " + f)
+	gotrovi.total = 0
+	gotrovi.count = 0
+	gotrovi.PerformFolderOperation(i, count)
+	Info.Println("Found files: ", gotrovi.count)
+
+	gotrovi.PerformFolderOperation(i, sync)
 
 }
 
@@ -450,5 +374,51 @@ func (gotrovi *Gotrovi) SyncAddMissing() {
 		Info.Println("Found files: ", gotrovi.count)
 
 		gotrovi.PerformFolderOperation(i, addMissing)
+	}
+}
+
+func (gotrovi *Gotrovi) SyncForced() {
+	Info.Println("Performing Sync")
+
+	res, err := gotrovi.es.Search(
+		gotrovi.es.Search.WithIndex(GOTROVI_ES_INDEX),
+		//		gotrovi.es.Search.WithSort("timestamp:desc"),
+		gotrovi.es.Search.WithSize(1),
+		gotrovi.es.Search.WithContext(context.Background()),
+	)
+	if err != nil {
+		Error.Println(err)
+	}
+	defer res.Body.Close()
+
+	if err == nil && !res.IsError() {
+		Trace.Println("Deleting index" + GOTROVI_ES_INDEX)
+		// Delete index to start from scratch
+		req := esapi.IndicesDeleteRequest{Index: []string{GOTROVI_ES_INDEX}}
+		res, err := req.Do(context.Background(), gotrovi.es)
+		if err != nil {
+			Error.Println(err)
+		}
+		defer res.Body.Close()
+	}
+
+	// configure Elastic
+	body := "{ \"processors\" : [ { \"attachment\" : { \"field\" : \"data\" }, \"remove\": { \"field\": \"data\" } } ] }"
+
+	req := esapi.IngestPutPipelineRequest{DocumentID: "attachement", Body: strings.NewReader(body)}
+	res, err = req.Do(context.Background(), gotrovi.es)
+	if err != nil {
+		Error.Println(err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		Error.Println("Unable to set pipeline attachement")
+		Error.Println(err)
+		os.Exit(1)
+	}
+
+	for i := 0; i < len(gotrovi.conf.Index); i++ {
+		gotrovi.SyncFolder(i)
 	}
 }
