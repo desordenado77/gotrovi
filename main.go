@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/user"
 	"reflect"
 	"strconv"
 	"strings"
@@ -23,6 +24,10 @@ import (
 
 const CONFIGENV = "GOTROVI_CONF"
 const GOTROVI_ES_INDEX = "gotrovi"
+const CONFIG_FILENAME = "config.json"
+const GOTROVI_SETTINGS_FOLDER_PATTERN = "%s/.gotrovi/"
+
+var GOTROVI_SETTINGS_FOLDER string
 
 type GotroviConf struct {
 	Index         []Index  `json:"index"`
@@ -129,11 +134,12 @@ func main() {
 	//    optName := getopt.StringLong("name", 'n', "Torpedo", "Your name")
 	optHelp := getopt.BoolLong("Help", 'h', "Show this message")
 	optVerbose := getopt.IntLong("Verbose", 'v', 0, "Set verbosity: 0 to 3")
-	optSync := getopt.StringLong("Sync", 's', "", "Perform Sync. force is the brute force sync type in which the ES index is deleted and the whole FS is processed")
+	optSync := getopt.StringLong("Sync", 's', "", "Perform Sync. Options:\n\"forced\" this is the brute force sync type in which the ES index is deleted and the whole FS is processed\n\"update\" update existing documents in Elasticsearch\n\"updateFast\" same as update, only slightly faster")
 	optFind := getopt.StringLong("Find", 'f', "", "Find file by name")
 	optScore := getopt.BoolLong("sCore", 'c', "Display elasticseach score")
 	optHighlightString := getopt.StringLong("grep", 'g', "", "Grep style output showing the match in the content. Give the text to grep for in the highlights as parameter")
 	optHighlightBool := getopt.BoolLong("Grep", 'G', "Grep style output showing the match in the content")
+	optInstall := getopt.BoolLong("install", 'i', "Install the necessary config files in "+GOTROVI_SETTINGS_FOLDER+" and run the Elasticsearch container")
 	var searchPath []string
 
 	getopt.Parse()
@@ -162,33 +168,48 @@ func main() {
 		vt = os.Stdout
 	}
 
+	var gotrovi Gotrovi
+
 	InitLogs(vt, vi, vw, os.Stderr)
 
+	usr, err := user.Current()
+	if err != nil {
+		Error.Println("Error getting current user info: ")
+		Error.Println(err)
+		os.Exit(1)
+	}
+
+	GOTROVI_SETTINGS_FOLDER = fmt.Sprintf(GOTROVI_SETTINGS_FOLDER_PATTERN, usr.HomeDir)
+
+	if *optInstall {
+		Info.Println("Insalling gotrovi")
+		gotrovi.Install()
+	}
+
 	// read config file from:
-	// 1. .gotrovi/config.json in ~/
-	// 2. GOTROVI_CONF env variable
+	// 1. GOTROVI_CONF env variable
+	// 2. .gotrovi/config.json in ~/
 	// 3. in ./config.json
 
-	// Open our jsonFile
-	jsonFile, err := os.Open("~/.gotrovi/config.json")
-	// if we os.Open returns an error then handle it
-	if err != nil {
-		Warning.Println(err)
+	var jsonFile *os.File
 
-		c, exist := os.LookupEnv(CONFIGENV)
+	c, exist := os.LookupEnv(CONFIGENV)
 
-		if exist {
-			jsonFile, err = os.Open(c)
-			if err != nil {
-				Warning.Println(err)
-			}
-		} else {
-			Warning.Println(CONFIGENV + " environment variable not found")
-			err = os.ErrNotExist
-		}
-
+	if exist {
+		jsonFile, err = os.Open(c + "/" + CONFIG_FILENAME)
 		if err != nil {
-			jsonFile, err = os.Open("./config.json")
+			Warning.Println(err)
+		}
+	} else {
+		Warning.Println(CONFIGENV + " environment variable not found")
+		err = os.ErrNotExist
+	}
+
+	if err != nil {
+		jsonFile, err = os.Open(GOTROVI_SETTINGS_FOLDER + CONFIG_FILENAME)
+		if err != nil {
+			Warning.Println(err)
+			jsonFile, err = os.Open("./" + CONFIG_FILENAME)
 			if err != nil {
 				Warning.Println(err)
 			}
@@ -199,6 +220,7 @@ func main() {
 		Error.Println("Unable to open config file")
 		os.Exit(1)
 	}
+	defer jsonFile.Close()
 
 	byteValue, err := ioutil.ReadAll(jsonFile)
 
@@ -206,8 +228,6 @@ func main() {
 		Error.Println("Unable to read config file: " + jsonFile.Name())
 		os.Exit(1)
 	}
-
-	var gotrovi Gotrovi
 
 	err = json.Unmarshal(byteValue, &gotrovi.conf)
 
