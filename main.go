@@ -128,6 +128,100 @@ func InitLogs(
 		log.Ldate|log.Ltime|log.Lshortfile)
 }
 
+func (gotrovi *Gotrovi) ConnectElasticSearch() (err error) {
+
+	cfg := elasticsearch.Config{
+		Addresses: []string{
+			"http://" + gotrovi.conf.ElasticSearch.Host + ":" + strconv.Itoa(gotrovi.conf.ElasticSearch.Port),
+		},
+	}
+
+	gotrovi.es, err = elasticsearch.NewClient(cfg)
+
+	if err != nil {
+		Error.Println("Error connecting to ElasticSearch " + cfg.Addresses[0])
+		Error.Println(err)
+		return err
+	}
+	res, err := gotrovi.es.Info()
+
+	Trace.Println(res)
+
+	if err != nil {
+		Error.Println("Error connecting to ElasticSearch " + cfg.Addresses[0])
+		Error.Println(err)
+		return err
+	}
+
+	return nil
+}
+
+func (gotrovi *Gotrovi) ParseConfig() (err error) {
+
+	// read config file from:
+	// 1. GOTROVI_CONF env variable
+	// 2. .gotrovi/config.json in ~/
+	// 3. in ./config.json
+
+	var jsonFile *os.File
+
+	c, exist := os.LookupEnv(CONFIGENV)
+
+	if exist {
+		jsonFile, err = os.Open(c + "/" + CONFIG_FILENAME)
+		if err != nil {
+			Warning.Println(err)
+		}
+	} else {
+		Warning.Println(CONFIGENV + " environment variable not found")
+		err = os.ErrNotExist
+	}
+
+	if err != nil {
+		jsonFile, err = os.Open(GOTROVI_SETTINGS_FOLDER + CONFIG_FILENAME)
+		if err != nil {
+			Warning.Println(err)
+			jsonFile, err = os.Open("./" + CONFIG_FILENAME)
+			if err != nil {
+				Warning.Println(err)
+			}
+		}
+	}
+
+	if err != nil {
+		Error.Println("Unable to open config file")
+		return err
+	}
+	defer jsonFile.Close()
+
+	byteValue, err := ioutil.ReadAll(jsonFile)
+
+	if err != nil {
+		Error.Println("Unable to read config file: " + jsonFile.Name())
+		return err
+	}
+
+	err = json.Unmarshal(byteValue, &gotrovi.conf)
+
+	if err != nil {
+		Error.Println("Unable to read config file: " + jsonFile.Name())
+		return err
+	}
+
+	for i := 0; i < len(gotrovi.conf.Index); i++ {
+		Trace.Println("folder: " + gotrovi.conf.Index[i].Folder)
+		for j := 0; j < len(gotrovi.conf.Index[i].Exclude); j++ {
+			Trace.Println("exclude: " + gotrovi.conf.Index[i].Exclude[j])
+		}
+	}
+	for i := 0; i < len(gotrovi.conf.Exclude.Extension); i++ {
+		Trace.Println("exclude extensions: " + gotrovi.conf.Exclude.Extension[i])
+	}
+	Trace.Println("exclude size: ", gotrovi.conf.Exclude.Size)
+
+	return nil
+}
+
 func main() {
 	getopt.SetUsage(usage)
 
@@ -186,87 +280,15 @@ func main() {
 		gotrovi.Install()
 	}
 
-	// read config file from:
-	// 1. GOTROVI_CONF env variable
-	// 2. .gotrovi/config.json in ~/
-	// 3. in ./config.json
-
-	var jsonFile *os.File
-
-	c, exist := os.LookupEnv(CONFIGENV)
-
-	if exist {
-		jsonFile, err = os.Open(c + "/" + CONFIG_FILENAME)
-		if err != nil {
-			Warning.Println(err)
-		}
-	} else {
-		Warning.Println(CONFIGENV + " environment variable not found")
-		err = os.ErrNotExist
-	}
-
+	err = gotrovi.ParseConfig()
 	if err != nil {
-		jsonFile, err = os.Open(GOTROVI_SETTINGS_FOLDER + CONFIG_FILENAME)
-		if err != nil {
-			Warning.Println(err)
-			jsonFile, err = os.Open("./" + CONFIG_FILENAME)
-			if err != nil {
-				Warning.Println(err)
-			}
-		}
-	}
-
-	if err != nil {
-		Error.Println("Unable to open config file")
-		os.Exit(1)
-	}
-	defer jsonFile.Close()
-
-	byteValue, err := ioutil.ReadAll(jsonFile)
-
-	if err != nil {
-		Error.Println("Unable to read config file: " + jsonFile.Name())
+		Error.Println("Exiting")
 		os.Exit(1)
 	}
 
-	err = json.Unmarshal(byteValue, &gotrovi.conf)
-
+	err = gotrovi.ConnectElasticSearch()
 	if err != nil {
-		Error.Println("Unable to read config file: " + jsonFile.Name())
-		os.Exit(1)
-	}
-
-	for i := 0; i < len(gotrovi.conf.Index); i++ {
-		Trace.Println("folder: " + gotrovi.conf.Index[i].Folder)
-		for j := 0; j < len(gotrovi.conf.Index[i].Exclude); j++ {
-			Trace.Println("exclude: " + gotrovi.conf.Index[i].Exclude[j])
-		}
-	}
-	for i := 0; i < len(gotrovi.conf.Exclude.Extension); i++ {
-		Trace.Println("exclude extensions: " + gotrovi.conf.Exclude.Extension[i])
-	}
-	Trace.Println("exclude size: ", gotrovi.conf.Exclude.Size)
-
-	cfg := elasticsearch.Config{
-		Addresses: []string{
-			"http://" + gotrovi.conf.ElasticSearch.Host + ":" + strconv.Itoa(gotrovi.conf.ElasticSearch.Port),
-		},
-	}
-
-	gotrovi.es, err = elasticsearch.NewClient(cfg)
-
-	if err != nil {
-		Error.Println("Error connecting to ElasticSearch " + cfg.Addresses[0])
-		Error.Println(err)
-		os.Exit(1)
-	}
-	res, err := gotrovi.es.Info()
-
-	Trace.Println(res)
-
-	if err != nil {
-		Error.Println("Error connecting to ElasticSearch " + cfg.Addresses[0])
-		Error.Println(err)
+		Error.Println("Exiting")
 		os.Exit(1)
 	}
 

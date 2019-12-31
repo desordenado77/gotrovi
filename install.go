@@ -92,5 +92,20 @@ func (gotrovi *Gotrovi) Install() {
 			os.Exit(1)
 		}
 	}
+
+	err = gotrovi.ParseConfig()
+	if err != nil {
+		Error.Println("Exiting")
+		os.Exit(1)
+	}
+
+	Info.Println("3. Check if Elasticsearch is running and launch it if not")
+	err = gotrovi.ConnectElasticSearch()
+	if err != nil {
+		// launch elasticsearch
+		Info.Println("ElasticSearch is not running")
+
+	}
+
 	Info.Println("Install Done")
 }
