@@ -1,9 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/user"
@@ -35,15 +35,15 @@ const CONFIG_JSON = `{
     }
 }`
 
-const ES_RETRY_TIME = 5
-const ES_RETRY_COUNT = 10
+const ES_RETRY_TIME = 1
+const ES_RETRY_COUNT = 30
 
 func (gotrovi *Gotrovi) Install() {
 	// 1. Check for gotrovi config folder and create it if not present
 	// 2. Check for gotrovi config file and create it if not present
 	// 3. Check if Elasticsearch is running and launch it if not
 
-	Info.Println("Performing install")
+	fmt.Println("Installing Gotrovi")
 	Info.Println("1. Checking if config folder exists")
 
 	path := ""
@@ -151,7 +151,12 @@ func (gotrovi *Gotrovi) Install() {
 			Error.Println(err)
 			os.Exit(1)
 		}
-		io.Copy(os.Stdout, out)
+		//		io.Copy(os.Stdout, out)
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(out)
+		newStr := buf.String()
+
+		Trace.Println(newStr)
 
 		resp, err := cli.ContainerCreate(ctx, &container.Config{
 			Image: imageName,
@@ -177,20 +182,26 @@ func (gotrovi *Gotrovi) Install() {
 			os.Exit(1)
 		}
 
-		fmt.Println(resp.ID)
+		Trace.Println(resp.ID)
 
+		fmt.Print("Waiting for ElasticSearch to be up")
 		for retry := ES_RETRY_COUNT; retry > 0 && nil != gotrovi.ConnectElasticSearch(); {
 			time.Sleep(ES_RETRY_TIME * time.Second)
 			Trace.Println("ElasticSearch is not up yet, retrying")
 			retry = retry - 1
+			fmt.Print(".")
 		}
 
-		if gotrovi.ConnectElasticSearch() != nil {
-			Error.Println("Unable to get ElasticSearch running")
+		fmt.Println(" Ready!!")
+		err = gotrovi.ConnectElasticSearch()
+		if err != nil {
+			Error.Println("Unable to get ElasticSearch running. Error: ")
+			Error.Println(err)
 			os.Exit(1)
 		}
 
 	}
 
+	fmt.Println("Done. Enjoy Gotrovi now")
 	Info.Println("Install Done")
 }

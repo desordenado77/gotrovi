@@ -148,8 +148,8 @@ func (gotrovi *Gotrovi) ConnectElasticSearch() (err error) {
 	Trace.Println(res)
 
 	if err != nil {
-		Error.Println("Error connecting to ElasticSearch " + cfg.Addresses[0])
-		Error.Println(err)
+		Trace.Println("Error connecting to ElasticSearch " + cfg.Addresses[0])
+		Trace.Println(err)
 		return err
 	}
 
@@ -223,6 +223,18 @@ func (gotrovi *Gotrovi) ParseConfig() (err error) {
 }
 
 func main() {
+
+	InitLogs(os.Stdout, os.Stdout, os.Stdout, os.Stderr)
+
+	usr, err := user.Current()
+	if err != nil {
+		Error.Println("Error getting current user info: ")
+		Error.Println(err)
+		os.Exit(1)
+	}
+
+	GOTROVI_SETTINGS_FOLDER = fmt.Sprintf(GOTROVI_SETTINGS_FOLDER_PATTERN, usr.HomeDir)
+
 	getopt.SetUsage(usage)
 
 	//    optName := getopt.StringLong("name", 'n', "Torpedo", "Your name")
@@ -230,7 +242,7 @@ func main() {
 	optVerbose := getopt.IntLong("Verbose", 'v', 0, "Set verbosity: 0 to 3")
 	optSync := getopt.StringLong("Sync", 's', "", "Perform Sync. Options:\n\"forced\" this is the brute force sync type in which the ES index is deleted and the whole FS is processed\n\"update\" update existing documents in Elasticsearch\n\"updateFast\" same as update, only slightly faster")
 	optFind := getopt.StringLong("Find", 'f', "", "Find file by name")
-	optScore := getopt.BoolLong("sCore", 'c', "Display elasticsearch score")
+	optScore := getopt.BoolLong("sCore", 'c', "Display elasticsearch score in searches")
 	optDelete := getopt.BoolLong("Delete", 'd', "Delete elasticsearch index")
 	optHighlightString := getopt.StringLong("grep", 'g', "", "Grep style output showing the match in the content. Give the text to grep for in the highlights as parameter")
 	optHighlightBool := getopt.BoolLong("Grep", 'G', "Grep style output showing the match in the content")
@@ -267,15 +279,6 @@ func main() {
 
 	InitLogs(vt, vi, vw, os.Stderr)
 
-	usr, err := user.Current()
-	if err != nil {
-		Error.Println("Error getting current user info: ")
-		Error.Println(err)
-		os.Exit(1)
-	}
-
-	GOTROVI_SETTINGS_FOLDER = fmt.Sprintf(GOTROVI_SETTINGS_FOLDER_PATTERN, usr.HomeDir)
-
 	if *optInstall {
 		Info.Println("Insalling gotrovi")
 		gotrovi.Install()
@@ -289,7 +292,8 @@ func main() {
 
 	err = gotrovi.ConnectElasticSearch()
 	if err != nil {
-		Error.Println("Exiting")
+		Error.Println("Unable to connect with Elasticsearch. Error: ")
+		Error.Println(err)
 		os.Exit(1)
 	}
 
