@@ -32,7 +32,7 @@ func (gotrovi *Gotrovi) initializePipelineAttachment() {
 	if err != nil {
 		Error.Println(err)
 	}
-	defer res.Body.Close()
+	res.Body.Close()
 
 	if res.IsError() {
 		Error.Println("Unable to set pipeline attachement")
@@ -40,6 +40,17 @@ func (gotrovi *Gotrovi) initializePipelineAttachment() {
 		os.Exit(1)
 	}
 
+}
+
+func (gotrovi *Gotrovi) DeleteIndex() {
+	Trace.Println("Deleting index" + GOTROVI_ES_INDEX)
+	// Delete index to start from scratch
+	req := esapi.IndicesDeleteRequest{Index: []string{GOTROVI_ES_INDEX}}
+	res, err := req.Do(context.Background(), gotrovi.es)
+	if err != nil {
+		Error.Println(err)
+	}
+	res.Body.Close()
 }
 
 func count(g *Gotrovi, info os.FileInfo, p string) {
@@ -372,7 +383,7 @@ func (gotrovi *Gotrovi) SyncUpdate(useHash bool) {
 		gotrovi.es.Search.WithContext(context.Background()),
 	)
 	if err != nil || res.IsError() {
-		Error.Println(err)
+		Trace.Println(err)
 		return
 	}
 	defer res.Body.Close()
@@ -417,14 +428,7 @@ func (gotrovi *Gotrovi) SyncForced() {
 	defer res.Body.Close()
 
 	if err == nil && !res.IsError() {
-		Trace.Println("Deleting index" + GOTROVI_ES_INDEX)
-		// Delete index to start from scratch
-		req := esapi.IndicesDeleteRequest{Index: []string{GOTROVI_ES_INDEX}}
-		res, err := req.Do(context.Background(), gotrovi.es)
-		if err != nil {
-			Error.Println(err)
-		}
-		defer res.Body.Close()
+		gotrovi.DeleteIndex()
 	}
 
 	gotrovi.initializePipelineAttachment()

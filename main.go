@@ -230,7 +230,8 @@ func main() {
 	optVerbose := getopt.IntLong("Verbose", 'v', 0, "Set verbosity: 0 to 3")
 	optSync := getopt.StringLong("Sync", 's', "", "Perform Sync. Options:\n\"forced\" this is the brute force sync type in which the ES index is deleted and the whole FS is processed\n\"update\" update existing documents in Elasticsearch\n\"updateFast\" same as update, only slightly faster")
 	optFind := getopt.StringLong("Find", 'f', "", "Find file by name")
-	optScore := getopt.BoolLong("sCore", 'c', "Display elasticseach score")
+	optScore := getopt.BoolLong("sCore", 'c', "Display elasticsearch score")
+	optDelete := getopt.BoolLong("Delete", 'd', "Delete elasticsearch index")
 	optHighlightString := getopt.StringLong("grep", 'g', "", "Grep style output showing the match in the content. Give the text to grep for in the highlights as parameter")
 	optHighlightBool := getopt.BoolLong("Grep", 'G', "Grep style output showing the match in the content")
 	optInstall := getopt.BoolLong("install", 'i', "Install the necessary config files in "+GOTROVI_SETTINGS_FOLDER+" and run the Elasticsearch container")
@@ -290,6 +291,22 @@ func main() {
 	if err != nil {
 		Error.Println("Exiting")
 		os.Exit(1)
+	}
+
+	if *optDelete {
+		for {
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Println("Are you shure you want to delete the \"" + GOTROVI_ES_INDEX + "\" index? (y/n)")
+			text, _ := reader.ReadString('\n')
+			text = strings.Replace(strings.ToLower(text), "\n", "", -1)
+			if text == "yes" || text == "y" {
+				gotrovi.DeleteIndex()
+				fmt.Println("Index \"" + GOTROVI_ES_INDEX + "\" deleted")
+				break
+			} else if text == "no" || text == "n" {
+				break
+			}
+		}
 	}
 
 	gotrovi.writer = goterminal.New(os.Stdout)
