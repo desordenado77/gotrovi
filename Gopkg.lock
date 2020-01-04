@@ -2,10 +2,40 @@
 
 
 [[projects]]
+  name = "github.com/Microsoft/go-winio"
+  packages = [".","pkg/guid"]
+  revision = "6c72808b55902eae4c5943626030429ff20f3b63"
+  version = "v0.4.14"
+
+[[projects]]
   name = "github.com/apoorvam/goterminal"
   packages = ["."]
   revision = "614d345c47e510f5bc95fef660f25d0c00d224e4"
   version = "v1.0"
+
+[[projects]]
+  name = "github.com/docker/distribution"
+  packages = ["digestset","reference"]
+  revision = "2461543d988979529609e8cb6fca9ca190dc48da"
+  version = "v2.7.1"
+
+[[projects]]
+  name = "github.com/docker/docker"
+  packages = ["api/types","api/types/blkiodev","api/types/container","api/types/events","api/types/filters","api/types/mount","api/types/network","api/types/reference","api/types/registry","api/types/strslice","api/types/swarm","api/types/time","api/types/versions","api/types/volume","client","pkg/tlsconfig"]
+  revision = "092cba3727bb9b4a2f0e922cd6c0f93ea270e363"
+  version = "v1.13.1"
+
+[[projects]]
+  name = "github.com/docker/go-connections"
+  packages = ["nat","sockets","tlsconfig"]
+  revision = "7395e3f8aa162843a74ed6d48e79627d9792ac55"
+  version = "v0.4.0"
+
+[[projects]]
+  name = "github.com/docker/go-units"
+  packages = ["."]
+  revision = "519db1ee28dcc9fd2474ae59fca29a810482bfb1"
+  version = "v0.4.0"
 
 [[projects]]
   name = "github.com/elastic/go-elasticsearch"
@@ -26,20 +56,38 @@
   version = "v0.0.11"
 
 [[projects]]
+  name = "github.com/opencontainers/go-digest"
+  packages = ["."]
+  revision = "279bed98673dd5bef374d3b6e4b09e2af76183bf"
+  version = "v1.0.0-rc1"
+
+[[projects]]
   branch = "master"
   name = "github.com/pborman/getopt"
   packages = ["."]
   revision = "ee0cd42419d3adee9239dbd1c375717fe482dac7"
 
 [[projects]]
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  revision = "ba968bfe8b2f7e042a574c888954fccecfa385b4"
+  version = "v0.8.1"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/net"
+  packages = ["context","context/ctxhttp","internal/socks","proxy"]
+  revision = "c0dbc17a35534bf2e581d7a942408dc936316da4"
+
+[[projects]]
   branch = "master"
   name = "golang.org/x/sys"
-  packages = ["unix"]
+  packages = ["unix","windows"]
   revision = "4a24b406529242041050cb1dec3e0e4c46a5f1b6"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "df4c13df0bad9a04ce8b3d9a763a0dca732c48d87e4c0139a628d3ec96eac2f8"
+  inputs-digest = "dea4f74ef53e318078403670ada4aaffe422c3ca63f607aeb4eec03f19c4ce28"
   solver-name = "gps-cdcl"
   solver-version = 1

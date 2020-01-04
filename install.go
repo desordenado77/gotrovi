@@ -1,11 +1,19 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
+	"time"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
 )
 
 const CONFIG_JSON = `{
@@ -26,6 +34,9 @@ const CONFIG_JSON = `{
       "port": 9200
     }
 }`
+
+const ES_RETRY_TIME = 5
+const ES_RETRY_COUNT = 10
 
 func (gotrovi *Gotrovi) Install() {
 	// 1. Check for gotrovi config folder and create it if not present
@@ -102,8 +113,82 @@ func (gotrovi *Gotrovi) Install() {
 	Info.Println("3. Check if Elasticsearch is running and launch it if not")
 	err = gotrovi.ConnectElasticSearch()
 	if err != nil {
+
+		info, err := os.Stat(path + "/es_data")
+		if os.IsNotExist(err) {
+			Trace.Println("Folder does not exist, creating " + path + "/es_data")
+			// create folder
+			err := os.Mkdir(path+"/es_data", os.ModePerm)
+			if err != nil {
+				Error.Println("Error creating folder: ")
+				Error.Println(err)
+				os.Exit(1)
+			}
+		} else {
+			if !info.IsDir() {
+				Error.Println("Cannot use es_data. It is not a folder.")
+				os.Exit(1)
+			}
+		}
+
 		// launch elasticsearch
 		Info.Println("ElasticSearch is not running")
+
+		ctx := context.Background()
+		cli, err := client.NewEnvClient()
+		//client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+		if err != nil {
+			Error.Println(err)
+			os.Exit(1)
+		}
+
+		// github packages require authenticated user to pull even public containers, so use docker hub for now
+		// imageName := "docker.pkg.github.com/desordenado77/gotrovi-dockerfiles/gotrovi-es:7.4.2"
+		imageName := "docker.io/gorkagarcia/gotrovi-es:latest"
+
+		out, err := cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
+		if err != nil {
+			Error.Println(err)
+			os.Exit(1)
+		}
+		io.Copy(os.Stdout, out)
+
+		resp, err := cli.ContainerCreate(ctx, &container.Config{
+			Image: imageName,
+			Env:   []string{"discovery.type=single-node"},
+		},
+			&container.HostConfig{
+				PortBindings: nat.PortMap{
+					nat.Port("9200/tcp"): []nat.PortBinding{{HostIP: "0.0.0.0", HostPort: "9200"}},
+					nat.Port("9300/tcp"): []nat.PortBinding{{HostIP: "0.0.0.0", HostPort: "9300"}},
+				},
+				Binds: []string{
+					path + "es_data:/usr/share/elasticsearch/data",
+				},
+			}, nil, "")
+
+		if err != nil {
+			Error.Println(err)
+			os.Exit(1)
+		}
+
+		if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
+			Error.Println(err)
+			os.Exit(1)
+		}
+
+		fmt.Println(resp.ID)
+
+		for retry := ES_RETRY_COUNT; retry > 0 && nil != gotrovi.ConnectElasticSearch(); {
+			time.Sleep(ES_RETRY_TIME * time.Second)
+			Trace.Println("ElasticSearch is not up yet, retrying")
+			retry = retry - 1
+		}
+
+		if gotrovi.ConnectElasticSearch() != nil {
+			Error.Println("Unable to get ElasticSearch running")
+			os.Exit(1)
+		}
 
 	}
 

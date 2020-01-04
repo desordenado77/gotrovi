@@ -22,6 +22,26 @@ import (
 
 type folderOperation func(*Gotrovi, os.FileInfo, string)
 
+func (gotrovi *Gotrovi) initializePipelineAttachment() {
+
+	// configure Elastic
+	body := "{ \"description\" : \"Extract attachment information\", \"processors\" : [ { \"attachment\" : { \"field\" : \"data\" }, \"remove\": { \"field\": \"data\" } } ] }"
+
+	req := esapi.IngestPutPipelineRequest{DocumentID: "attachment", Body: strings.NewReader(body)}
+	res, err := req.Do(context.Background(), gotrovi.es)
+	if err != nil {
+		Error.Println(err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		Error.Println("Unable to set pipeline attachement")
+		Error.Println(err)
+		os.Exit(1)
+	}
+
+}
+
 func count(g *Gotrovi, info os.FileInfo, p string) {
 	g.total = g.total + 1
 }
@@ -341,6 +361,8 @@ func (gotrovi *Gotrovi) SyncFolder(i int) {
 }
 
 func (gotrovi *Gotrovi) SyncUpdate(useHash bool) {
+	gotrovi.initializePipelineAttachment()
+
 	Info.Println("Deleting missing docs")
 
 	res, err := gotrovi.es.Search(
@@ -357,11 +379,14 @@ func (gotrovi *Gotrovi) SyncUpdate(useHash bool) {
 
 	var buf bytes.Buffer
 
+	Info.Println("Update existing entries")
 	gotrovi.ES_Find("*", []string{}, useHash, "", false, UpdateEntries, &buf)
 
 }
 
 func (gotrovi *Gotrovi) SyncAddMissing() {
+	gotrovi.initializePipelineAttachment()
+
 	Info.Println("Adding Missing files")
 
 	for i := 0; i < len(gotrovi.conf.Index); i++ {
@@ -402,21 +427,7 @@ func (gotrovi *Gotrovi) SyncForced() {
 		defer res.Body.Close()
 	}
 
-	// configure Elastic
-	body := "{ \"processors\" : [ { \"attachment\" : { \"field\" : \"data\" }, \"remove\": { \"field\": \"data\" } } ] }"
-
-	req := esapi.IngestPutPipelineRequest{DocumentID: "attachement", Body: strings.NewReader(body)}
-	res, err = req.Do(context.Background(), gotrovi.es)
-	if err != nil {
-		Error.Println(err)
-	}
-	defer res.Body.Close()
-
-	if res.IsError() {
-		Error.Println("Unable to set pipeline attachement")
-		Error.Println(err)
-		os.Exit(1)
-	}
+	gotrovi.initializePipelineAttachment()
 
 	for i := 0; i < len(gotrovi.conf.Index); i++ {
 		gotrovi.SyncFolder(i)
