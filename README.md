@@ -1,6 +1,6 @@
 # Gotrovi
 
-Trovi in speranto means find
+Trovi means find in speranto
 
 This program indexes and performs searches in the files in your filesystem. It uses Elasticsearch as a search server, allowing the server to be on a different host. It uses the ingest attachment plugin from ElasticSearch, which allows finding text in many different types of files (pdf, word...).
 
