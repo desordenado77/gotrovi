@@ -238,7 +238,7 @@ func addMissing(g *Gotrovi, info os.FileInfo, p string) {
 	}
 
 	g.writer.Clear()
-	fmt.Fprintf(g.writer, "Checking for new files (%d/%d) files. %d files added...\n", g.count, g.total, g.added)
+	fmt.Fprintf(g.writer, "Checking for new files (%d/%d). %d files added...\n", g.count, g.total, g.added)
 	// write to terminal
 	g.writer.Print()
 
@@ -296,6 +296,12 @@ func UpdateEntries(g *Gotrovi, total int, current int, e SearchHit, useHash bool
 	// check if entry still exists and delete it from ES if not
 
 	info, err := os.Stat(e.Source.FullName)
+	if err != nil {
+		Error.Println("Error getting file Stat " + e.Source.FullName)
+		Error.Println("Error: ", err)
+		Error.Println()
+		return
+	}
 	if os.IsNotExist(err) {
 		// file no longer present. Delete the document from ES
 		Info.Println("Delete file from ES ", e.Source.FullName)
