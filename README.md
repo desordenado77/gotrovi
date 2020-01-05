@@ -126,3 +126,9 @@ gotrovi -f "attachment.content:test"
 ```sh
 gotrovi -f "attachment.content:test" ./
 ```
+
+When performing a search there are some options to define how the results are reported:
+
+- "-c": By using "-c" you can get for each search result the score reported.
+- "-G": This will show a chunk of the document content where the search query is met, assuming the query is found on the document content.
+- "-g value": Same as -G but it will highlihgt the word in value in the results.
