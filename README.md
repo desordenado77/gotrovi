@@ -2,7 +2,7 @@
 
 ![GitHub Actions status](https://github.com/desordenado77/gotrovi/workflows/Go/badge.svg)
 
-Trovi means find in speranto
+Trovi means find in esperanto
 
 This program indexes and performs searches in the files in your filesystem. It uses Elasticsearch as a search server, allowing the server to be on a different host. It uses the ingest attachment plugin from ElasticSearch, which allows finding text in many different types of files (pdf, word...).
 
