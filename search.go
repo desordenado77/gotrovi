@@ -82,6 +82,7 @@ func PrintEntry(g *Gotrovi, total int, current int, e SearchHit, bScore bool, sH
 	}
 }
 
+// https://stackoverflow.com/a/54198703/945568
 var pager io.WriteCloser
 
 func runPager() (*exec.Cmd, io.WriteCloser) {
