@@ -1,10 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -53,9 +53,9 @@ type SearchResult struct {
 	Hits     SearchHits `json:"hits"`
 }
 
-type ES_EntryFunc func(g *Gotrovi, total int, current int, e SearchHit, boolOption bool, stringOption string, buf *bytes.Buffer)
+type ES_EntryFunc func(g *Gotrovi, total int, current int, e SearchHit, boolOption bool, stringOption string, buf io.Writer)
 
-func PrintEntry(g *Gotrovi, total int, current int, e SearchHit, bScore bool, sHighligh string, buf *bytes.Buffer) {
+func PrintEntry(g *Gotrovi, total int, current int, e SearchHit, bScore bool, sHighligh string, buf io.Writer) {
 	s := e.Source
 	score := e.Score
 
@@ -82,23 +82,60 @@ func PrintEntry(g *Gotrovi, total int, current int, e SearchHit, bScore bool, sH
 	}
 }
 
-func (gotrovi *Gotrovi) Find(name string, paths []string, score bool, highlightText string, highlightBool bool) {
-	var buf bytes.Buffer
+var pager io.WriteCloser
 
-	gotrovi.ES_Find(name, paths, score, highlightText, highlightBool, PrintEntry, &buf)
-
-	cmd := exec.Command("less", "-X", "-N", "-r", "-S")
-	cmd.Stdin = strings.NewReader(buf.String())
-	cmd.Stdout = os.Stdout
-
-	err := cmd.Run()
+func runPager() (*exec.Cmd, io.WriteCloser) {
+	var cmd *exec.Cmd
+	pager := os.Getenv("PAGER")
+	if pager == "" {
+		cmd = exec.Command("less", "-X", "-N", "-R", "-S")
+		//cmd = exec.Command("most")
+	} else {
+		cmd = exec.Command(pager)
+	}
+	out, err := cmd.StdinPipe()
 	if err != nil {
 		Error.Println(err)
 		os.Exit(1)
 	}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		Error.Println(err)
+		os.Exit(1)
+	}
+	return cmd, out
 }
 
-func (gotrovi *Gotrovi) ES_Find(name string, paths []string, boolOption bool, highlightText string, highlightBool bool, entryFunc ES_EntryFunc, buf *bytes.Buffer) {
+func (gotrovi *Gotrovi) Find(name string, paths []string, score bool, highlightText string, highlightBool bool) {
+
+	var cmd *exec.Cmd
+	cmd, pager = runPager()
+	defer func() {
+		pager.Close()
+		cmd.Wait()
+	}()
+
+	gotrovi.ES_Find(name, paths, score, highlightText, highlightBool, PrintEntry, pager)
+
+	//gotrovi.ES_Find(name, paths, score, highlightText, highlightBool, PrintEntry, os.Stdout)
+
+	/*
+		var buf bytes.Buffer
+		gotrovi.ES_Find(name, paths, score, highlightText, highlightBool, PrintEntry, buf)
+		cmd := exec.Command("less", "-X", "-N", "-r", "-S")
+		cmd.Stdin = strings.NewReader(buf.String())
+		cmd.Stdout = os.Stdout
+
+		err := cmd.Run()
+		if err != nil {
+			Error.Println(err)
+			os.Exit(1)
+		}
+	*/
+}
+
+func (gotrovi *Gotrovi) ES_Find(name string, paths []string, boolOption bool, highlightText string, highlightBool bool, entryFunc ES_EntryFunc, buf io.Writer) {
 	query := name
 
 	if len(paths) != 0 {

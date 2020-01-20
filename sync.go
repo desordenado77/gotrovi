@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -292,7 +291,7 @@ func (gotrovi *Gotrovi) PerformFolderOperation(id int, fo folderOperation) {
 	}
 }
 
-func UpdateEntries(g *Gotrovi, total int, current int, e SearchHit, useHash bool, stringOption string, buf *bytes.Buffer) {
+func UpdateEntries(g *Gotrovi, total int, current int, e SearchHit, useHash bool, stringOption string, buf io.Writer) {
 	// check if entry still exists and delete it from ES if not
 
 	info, err := os.Stat(e.Source.FullName)
@@ -394,10 +393,10 @@ func (gotrovi *Gotrovi) SyncUpdate(useHash bool) {
 	}
 	defer res.Body.Close()
 
-	var buf bytes.Buffer
+	//var buf bytes.Buffer
 
 	Info.Println("Update existing entries")
-	gotrovi.ES_Find("*", []string{}, useHash, "", false, UpdateEntries, &buf)
+	gotrovi.ES_Find("*", []string{}, useHash, "", false, UpdateEntries, os.Stdout)
 
 }
 
