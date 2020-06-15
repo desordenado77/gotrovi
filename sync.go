@@ -217,6 +217,7 @@ func sync_file(g *Gotrovi, info os.FileInfo, p string) {
 		Refresh:    "true", // Refresh
 	}
 
+	fmt.Println(file.FullName)
 	g.wg.Add(1)
 	g.wait = g.wait + 1
 	go sendToEs(g, req, p)
@@ -264,6 +265,10 @@ func (gotrovi *Gotrovi) PerformFolderOperation(id int, fo folderOperation) {
 	err := filepath.Walk(f, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			Error.Printf("prevent panic by handling failure accessing a path %q: %v\n", path, err)
+			return filepath.SkipDir
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			Trace.Println("Skipping symlink: " + path)
 			return filepath.SkipDir
 		}
 		if info.IsDir() {
