@@ -149,6 +149,7 @@ func (gotrovi *Gotrovi) Install() {
 		out, err := cli.ImagePull(ctx, imageName, types.ImagePullOptions{})
 		if err != nil {
 			Error.Println(err)
+			Error.Println("Unable to pull image, something failed. Please pull it manually doing: docker pull ", imageName)
 			os.Exit(1)
 		}
 		//		io.Copy(os.Stdout, out)

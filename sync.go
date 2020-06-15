@@ -140,7 +140,7 @@ func sendToEs(g *Gotrovi, req esapi.IndexRequest, p string) {
 	// Cannot use the IndexRequest directly because esapi has issues handling forward slashes
 	res, err := putDoc(g, req)
 	if err != nil {
-		Error.Println("Error getting response:", err)
+		Error.Println("Sync", p, ": Error getting response:", err)
 		Error.Println()
 		return
 	}
@@ -217,7 +217,6 @@ func sync_file(g *Gotrovi, info os.FileInfo, p string) {
 		Refresh:    "true", // Refresh
 	}
 
-	fmt.Println(file.FullName)
 	g.wg.Add(1)
 	g.wait = g.wait + 1
 	go sendToEs(g, req, p)
@@ -267,7 +266,7 @@ func (gotrovi *Gotrovi) PerformFolderOperation(id int, fo folderOperation) {
 			Error.Printf("prevent panic by handling failure accessing a path %q: %v\n", path, err)
 			return filepath.SkipDir
 		}
-		if info.Mode()&os.ModeSymlink == 0 {
+		if info.Mode()&os.ModeSymlink != 0 {
 			Trace.Println("Skipping symlink: " + path)
 			return filepath.SkipDir
 		}
