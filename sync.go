@@ -134,7 +134,29 @@ func docExists(g *Gotrovi, r esapi.GetRequest) (exists bool) {
 	return true
 }
 
-func sync(g *Gotrovi, info os.FileInfo, p string) {
+func sendToEs(g *Gotrovi, req esapi.IndexRequest, p string) {
+	defer g.wg.Done()
+
+	// Cannot use the IndexRequest directly because esapi has issues handling forward slashes
+	res, err := putDoc(g, req)
+	if err != nil {
+		Error.Println("Error getting response:", err)
+		Error.Println()
+		return
+	}
+	defer res.Body.Close()
+
+	Trace.Println(res)
+	if res.StatusCode != 201 && res.StatusCode != 200 {
+		Error.Println("ES returned Error with file: ", p)
+		body, _ := ioutil.ReadAll(res.Body)
+		Error.Println("Error: ", string(body))
+		Error.Println()
+		return
+	}
+}
+
+func sync_file(g *Gotrovi, info os.FileInfo, p string) {
 	Trace.Println("Sync File: " + p)
 
 	var file FileDescriptionDoc
@@ -195,23 +217,9 @@ func sync(g *Gotrovi, info os.FileInfo, p string) {
 		Refresh:    "true", // Refresh
 	}
 
-	// Cannot use the IndexRequest directly because esapi has issues handling forward slashes
-	res, err := putDoc(g, req)
-	if err != nil {
-		Error.Println("Error getting response:", err)
-		Error.Println()
-		return
-	}
-	defer res.Body.Close()
-
-	Trace.Println(res)
-	if res.StatusCode != 201 && res.StatusCode != 200 {
-		Error.Println("ES returned Error with file: ", p)
-		body, _ := ioutil.ReadAll(res.Body)
-		Error.Println("Error: ", string(body))
-		Error.Println()
-		return
-	}
+	g.wg.Add(1)
+	g.wait = g.wait + 1
+	go sendToEs(g, req, p)
 
 	g.writer.Clear()
 	fmt.Fprintf(g.writer, "Synchronizing (%d/%d) files...\n", g.count, g.total)
@@ -219,6 +227,11 @@ func sync(g *Gotrovi, info os.FileInfo, p string) {
 	g.writer.Print()
 
 	g.count = g.count + 1
+
+	if g.wait >= g.jobs {
+		g.wg.Wait()
+		g.wait = 0
+	}
 
 }
 
@@ -232,7 +245,7 @@ func addMissing(g *Gotrovi, info os.FileInfo, p string) {
 	if !docExists(g, req) {
 		Info.Println("Adding file: ", p)
 		Info.Println()
-		sync(g, info, p)
+		sync_file(g, info, p)
 		g.added = g.added + 1
 	}
 
@@ -351,7 +364,7 @@ func UpdateEntries(g *Gotrovi, total int, current int, e SearchHit, useHash bool
 		if syncFile {
 			Info.Println("Resync file ", e.Source.FullName)
 			Info.Println()
-			sync(g, info, e.Source.FullName)
+			sync_file(g, info, e.Source.FullName)
 
 		}
 
@@ -372,7 +385,7 @@ func (gotrovi *Gotrovi) SyncFolder(i int) {
 	gotrovi.PerformFolderOperation(i, count)
 	Info.Println("Found files: ", gotrovi.count)
 
-	gotrovi.PerformFolderOperation(i, sync)
+	gotrovi.PerformFolderOperation(i, sync_file)
 
 }
 

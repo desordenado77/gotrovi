@@ -16,6 +16,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/apoorvam/goterminal"
 	"github.com/elastic/go-elasticsearch"
@@ -71,6 +72,10 @@ type Gotrovi struct {
 	es     *elasticsearch.Client
 	writer *goterminal.Writer
 	//	stdscr *gc.Window
+
+	wg   sync.WaitGroup
+	wait int
+	jobs int
 }
 
 var (
@@ -247,6 +252,7 @@ func main() {
 	optHighlightString := getopt.StringLong("grep", 'g', "", "Grep style output showing the match in the content. Give the text to grep for in the highlights as parameter")
 	optHighlightBool := getopt.BoolLong("Grep", 'G', "Grep style output showing the match in the content")
 	optInstall := getopt.BoolLong("install", 'i', "Install the necessary config files in "+GOTROVI_SETTINGS_FOLDER+" and run the Elasticsearch container")
+	optJobs := getopt.IntLong("jobs", 'j', 32, "Set amount of sync jobs. Default is 32")
 	var searchPath []string
 
 	getopt.Parse()
@@ -278,6 +284,8 @@ func main() {
 	var gotrovi Gotrovi
 
 	InitLogs(vt, vi, vw, os.Stderr)
+
+	gotrovi.jobs = *optJobs
 
 	if *optInstall {
 		Info.Println("Insalling gotrovi")
@@ -316,6 +324,7 @@ func main() {
 	gotrovi.writer = goterminal.New(os.Stdout)
 
 	if *optSync != "" {
+		Info.Println("Using", gotrovi.jobs, "jobs")
 		for {
 			reader := bufio.NewReader(os.Stdin)
 			fmt.Println("Are you shure you want to resynch? (y/n)")
